@@ -218,7 +218,7 @@ def generate_ujian_document(template_path: str, data: dict) -> bytes:
     doc.paragraphs[16].runs[0].text = data["nama"]
     doc.paragraphs[17].runs[0].text = f"NIM : {data['nim']}"
 
-    # 13. Hapus baris Catatan & Tanda Bintang di bagian bawah
+    # 13. Hapus baris Catatan & Tanda Bintang di bagian bawah jika ada
     for i in range(len(doc.paragraphs) - 1, -1, -1):
         txt = doc.paragraphs[i].text.strip()
         if txt.startswith("Catatan") or "Tanda Bintang" in txt:
@@ -229,15 +229,43 @@ def generate_ujian_document(template_path: str, data: dict) -> bytes:
     doc.save(output_stream)
     return output_stream.getvalue()
 
+# ==========================================
+# FUNGSI DOKUMEN 3: PENDAFTARAN SIDANG SKRIPSI (MAP KUNING)
+# ==========================================
+def generate_sidang_document(template_path: str, data: dict) -> bytes:
+    doc = Document(template_path)
+
+    # 1. Nama Mahasiswa (P0)
+    doc.paragraphs[0].runs[-1].text = f"\t: {data['nama']}"
+
+    # 2. NIM (P1)
+    doc.paragraphs[1].runs[-1].text = f"\t: {data['nim']}"
+
+    # 3. Program Studi (P2)
+    doc.paragraphs[2].runs[-1].text = f"\t: {data['prodi']}"
+
+    # 4. Tanggal & Tempat Dokumen (P19)
+    doc.paragraphs[19].runs[0].text = f"\t{data['tempat']}, {data['tanggal']}"
+    for r in doc.paragraphs[19].runs[1:]:
+        r.text = ""
+
+    # 5. Perbaiki koma ganda pada nama Kabag TU
+    doc.paragraphs[24].runs[-1].text = "Iwan Kurniawan, S.Pd., M.Si."
+
+    output_stream = io.BytesIO()
+    doc.save(output_stream)
+    return output_stream.getvalue()
+
 # Header Utama Aplikasi
 st.title("🎓 Portal Layanan Berkas Skripsi")
 st.subheader("Program Studi Sejarah dan Peradaban Islam (SPI)")
 st.caption("Fakultas Adab dan Humaniora — UIN Syarif Hidayatullah Jakarta")
 
-# Tab Pilihan Berkas
-tab1, tab2 = st.tabs([
+# Tab Pilihan Berkas (3 Formulir Lengkap)
+tab1, tab2, tab3 = st.tabs([
     "📄 Tanda Bukti Penyerahan Skripsi",
-    "📝 Formulir Pendaftaran Ujian Skripsi"
+    "📝 Formulir Pendaftaran Ujian Skripsi",
+    "📋 Formulir Pendaftaran Sidang (Persyaratan)"
 ])
 
 # ==========================================
@@ -458,6 +486,76 @@ with tab2:
                         label="📝 Unduh Word (.docx)",
                         data=docx_bytes_u,
                         file_name=f"Pendaftaran_Ujian_Skripsi_{clean_nim_u}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        use_container_width=True
+                    )
+
+# ==========================================
+# TAB 3: FORMULIR PENDAFTARAN SIDANG (PERSYARATAN MAP KUNING)
+# ==========================================
+with tab3:
+    st.info("💡 Formulir pendaftaran sidang skripsi yang memuat 11 berkas checklist persyaratan untuk dimasukkan ke dalam map kuning.")
+    
+    with st.form("form_sidang"):
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            s_nama = st.text_input("Nama Lengkap", placeholder="Contoh: Syarif Hidayatullah", key="s_nama")
+        with col_s2:
+            s_nim = st.text_input("NIM", placeholder="Contoh: 11200210000088", key="s_nim")
+
+        s_prodi = st.text_input("Program Studi", value="Sejarah dan Peradaban Islam", key="s_prodi")
+
+        st.markdown("##### Tempat & Tanggal Penandatanganan Surat")
+        col_st1, col_st2 = st.columns(2)
+        with col_st1:
+            s_tempat = st.text_input("Tempat Surat", value="Jakarta", key="s_tempat")
+        with col_st2:
+            s_tgl_surat = st.date_input("Tanggal Dokumen", value=datetime.date.today(), key="s_tgl_surat")
+
+        s_submitted = st.form_submit_button("🚀 Buat Dokumen Pendaftaran Sidang (1 Lembar)", use_container_width=True)
+
+    if s_submitted:
+        if not s_nama.strip():
+            st.error("⚠️ Nama Lengkap wajib diisi!")
+        elif not s_nim.strip():
+            st.error("⚠️ NIM wajib diisi!")
+        else:
+            tpl_sidang = os.path.join(os.path.dirname(__file__), "template_sidang.docx")
+            if not os.path.exists(tpl_sidang):
+                st.error("❌ File template_sidang.docx tidak ditemukan di direktori aplikasi!")
+            else:
+                payload_s = {
+                    "nama": s_nama.strip(),
+                    "nim": s_nim.strip(),
+                    "prodi": s_prodi.strip(),
+                    "tempat": s_tempat.strip() or "Jakarta",
+                    "tanggal": format_tanggal_indo(s_tgl_surat)
+                }
+
+                with st.spinner("Sedang memproses dokumen pendaftaran sidang..."):
+                    docx_bytes_s = generate_sidang_document(tpl_sidang, payload_s)
+                    pdf_bytes_s = convert_docx_to_pdf(docx_bytes_s)
+                    clean_nim_s = "".join(c for c in s_nim if c.isalnum())
+
+                st.success("✅ Formulir Pendaftaran Sidang berhasil dibuat tepat 1 lembar A4!")
+                st.markdown("##### Pilih format unduhan:")
+                col_sdl1, col_sdl2 = st.columns(2)
+                with col_sdl1:
+                    if pdf_bytes_s:
+                        st.download_button(
+                            label="📄 Unduh PDF (Pas 1 Lembar)",
+                            data=pdf_bytes_s,
+                            file_name=f"Pendaftaran_Sidang_Skripsi_{clean_nim_s}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                    else:
+                        st.warning("Konversi PDF tidak tersedia.")
+                with col_sdl2:
+                    st.download_button(
+                        label="📝 Unduh Word (.docx)",
+                        data=docx_bytes_s,
+                        file_name=f"Pendaftaran_Sidang_Skripsi_{clean_nim_s}.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                         use_container_width=True
                     )
