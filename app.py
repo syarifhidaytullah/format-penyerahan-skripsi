@@ -218,6 +218,13 @@ def generate_ujian_document(template_path: str, data: dict) -> bytes:
     doc.paragraphs[16].runs[0].text = data["nama"]
     doc.paragraphs[17].runs[0].text = f"NIM : {data['nim']}"
 
+    # 13. Hapus baris Catatan & Tanda Bintang di bagian bawah
+    for i in range(len(doc.paragraphs) - 1, -1, -1):
+        txt = doc.paragraphs[i].text.strip()
+        if txt.startswith("Catatan") or "Tanda Bintang" in txt:
+            p_el = doc.paragraphs[i]._p
+            p_el.getparent().remove(p_el)
+
     output_stream = io.BytesIO()
     doc.save(output_stream)
     return output_stream.getvalue()
