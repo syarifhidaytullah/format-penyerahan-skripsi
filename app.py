@@ -78,11 +78,13 @@ def generate_document(template_path: str, data: dict) -> bytes:
     # 6. Judul Skripsi (P5)
     doc.paragraphs[5].runs[-1].text = f"\t: {data['judul']}"
 
-    # 7. Hapus paragraf kosong berlebih sebelum tabel
+    # 7. Padding 1 baris antara judul skripsi dan tabel (pertahankan P6, hapus P7)
     p7 = doc.paragraphs[7]._p
     p7.getparent().remove(p7)
-    p6 = doc.paragraphs[6]._p
-    p6.getparent().remove(p6)
+    p6 = doc.paragraphs[6]
+    p6.paragraph_format.space_before = Pt(0)
+    p6.paragraph_format.space_after = Pt(0)
+    p6.paragraph_format.line_spacing = 1.0
 
     # 8. Optimalisasi ukuran baris dan teks tabel agar hemat ruang dan presisi
     table = doc.tables[0]
@@ -120,11 +122,11 @@ def generate_document(template_path: str, data: dict) -> bytes:
         update_dosen(table.rows[4].cells[1], data["penguji2_nama"], data.get("penguji2_nip", ""))
 
     # 10. Hapus tab kosong sebelum tanggal
-    p_tabs = doc.paragraphs[6]._p
+    p_tabs = doc.paragraphs[7]._p
     p_tabs.getparent().remove(p_tabs)
 
-    # 11. Tempat & Tanggal Dokumen (P6 setelah penghapusan)
-    p_jakarta = doc.paragraphs[6]
+    # 11. Tempat & Tanggal Dokumen (P7 setelah penghapusan p_tabs)
+    p_jakarta = doc.paragraphs[7]
     tempat_tgl = f"{data['tempat']}, {data['tanggal_penyerahan']}"
     p_jakarta.runs[0].text = tempat_tgl
     p_jakarta.runs[0].font.color.rgb = RGBColor(0, 0, 0)
@@ -132,18 +134,18 @@ def generate_document(template_path: str, data: dict) -> bytes:
         r.text = ""
 
     # 12. Hapus tab kosong setelah tanggal
-    p_tabs2 = doc.paragraphs[7]._p
+    p_tabs2 = doc.paragraphs[8]._p
     p_tabs2.getparent().remove(p_tabs2)
 
     # 13. Hapus 2 baris kosong manual tanda tangan agar tidak meluber ke lembar ke-2
-    p_sig1 = doc.paragraphs[9]._p
+    p_sig1 = doc.paragraphs[10]._p
     p_sig1.getparent().remove(p_sig1)
-    p_sig2 = doc.paragraphs[9]._p
+    p_sig2 = doc.paragraphs[10]._p
     p_sig2.getparent().remove(p_sig2)
 
-    # Beri spasi tanda tangan vertikal yang pas (45 pt) langsung pada nama Kabag TU
-    p_iwan = doc.paragraphs[9]
-    p_iwan.paragraph_format.space_before = Pt(45)
+    # Beri spasi tanda tangan vertikal yang pas (40 pt) langsung pada nama Kabag TU
+    p_iwan = doc.paragraphs[10]
+    p_iwan.paragraph_format.space_before = Pt(40)
 
     output_stream = io.BytesIO()
     doc.save(output_stream)
