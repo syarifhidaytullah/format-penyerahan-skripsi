@@ -6,7 +6,9 @@ import shutil
 import subprocess
 import tempfile
 from docx import Document
-from docx.shared import RGBColor
+from docx.shared import Mm, Pt, RGBColor
+from docx.oxml import parse_xml
+from docx.oxml.ns import nsdecls
 import streamlit as st
 
 # Konfigurasi Halaman
@@ -52,39 +54,63 @@ def format_nip_nidn(raw_val: str) -> str:
 def generate_document(template_path: str, data: dict) -> bytes:
     doc = Document(template_path)
 
-    # 1. Nama Mahasiswa (P1)
+    # 1. Atur margin agar pas 1 lembar A4
+    sec = doc.sections[0]
+    sec.top_margin = Mm(15)
+    sec.bottom_margin = Mm(12)
+    sec.left_margin = Mm(20)
+    sec.right_margin = Mm(20)
+
+    # 2. Nama Mahasiswa (P1)
     doc.paragraphs[1].runs[-1].text = f"\t: {data['nama']}"
 
-    # 2. NIM (P2)
+    # 3. NIM (P2)
     doc.paragraphs[2].runs[-1].text = f"\t: {data['nim']}"
 
-    # 3. Program Studi (P3)
+    # 4. Program Studi (P3)
     if data.get("prodi"):
         doc.paragraphs[3].runs[-1].text = data["prodi"]
 
-    # 4. Tanggal Sidang (P4)
-    # Ubah run terakhir agar font hitam normal dan masukkan tanggal sidang
+    # 5. Tanggal Sidang (P4)
     doc.paragraphs[4].runs[-1].text = f": {data['tanggal_sidang']}"
     doc.paragraphs[4].runs[-1].font.color.rgb = RGBColor(0, 0, 0)
 
-    # 5. Judul Skripsi (P5)
+    # 6. Judul Skripsi (P5)
     doc.paragraphs[5].runs[-1].text = f"\t: {data['judul']}"
 
-    # 6. Tempat, Tanggal Dokumen (P9 - ubah warna merah ke hitam)
-    tempat_tgl = f"{data['tempat']}, {data['tanggal_penyerahan']}"
-    doc.paragraphs[9].runs[0].text = tempat_tgl
-    doc.paragraphs[9].runs[0].font.color.rgb = RGBColor(0, 0, 0)
-    for r in doc.paragraphs[9].runs[1:]:
-        r.text = ""
+    # 7. Hapus paragraf kosong berlebih sebelum tabel
+    p7 = doc.paragraphs[7]._p
+    p7.getparent().remove(p7)
+    p6 = doc.paragraphs[6]._p
+    p6.getparent().remove(p6)
 
-    # 7. Data Dosen Pembimbing & Penguji (Tabel baris 2, 3, 4)
+    # 8. Optimalisasi ukuran baris dan teks tabel agar hemat ruang dan presisi
     table = doc.tables[0]
+    xml_ns = nsdecls("w")
+    for r in table.rows:
+        trPr = r._tr.get_or_add_trPr()
+        for th in trPr.xpath("./w:trHeight"):
+            trPr.remove(th)
+        new_th = parse_xml(f'<w:trHeight {xml_ns} w:val="380" w:hRule="atLeast"/>')
+        trPr.append(new_th)
+        for c in r.cells:
+            for p in c.paragraphs:
+                p.paragraph_format.space_before = Pt(1)
+                p.paragraph_format.space_after = Pt(1)
+                p.paragraph_format.line_spacing = 1.0
+                for run in p.runs:
+                    run.font.size = Pt(10.5)
 
+    # 9. Data Dosen Pembimbing & Penguji (Tabel baris 2, 3, 4)
     def update_dosen(cell, nama, nip_raw):
         if nama.strip():
             cell.paragraphs[0].text = nama.strip()
+            for r in cell.paragraphs[0].runs:
+                r.font.size = Pt(10.5)
         if nip_raw.strip():
             cell.paragraphs[1].text = format_nip_nidn(nip_raw)
+            for r in cell.paragraphs[1].runs:
+                r.font.size = Pt(10.5)
 
     if data.get("pembimbing_nama"):
         update_dosen(table.rows[2].cells[1], data["pembimbing_nama"], data.get("pembimbing_nip", ""))
@@ -92,6 +118,32 @@ def generate_document(template_path: str, data: dict) -> bytes:
         update_dosen(table.rows[3].cells[1], data["penguji1_nama"], data.get("penguji1_nip", ""))
     if data.get("penguji2_nama"):
         update_dosen(table.rows[4].cells[1], data["penguji2_nama"], data.get("penguji2_nip", ""))
+
+    # 10. Hapus tab kosong sebelum tanggal
+    p_tabs = doc.paragraphs[6]._p
+    p_tabs.getparent().remove(p_tabs)
+
+    # 11. Tempat & Tanggal Dokumen (P6 setelah penghapusan)
+    p_jakarta = doc.paragraphs[6]
+    tempat_tgl = f"{data['tempat']}, {data['tanggal_penyerahan']}"
+    p_jakarta.runs[0].text = tempat_tgl
+    p_jakarta.runs[0].font.color.rgb = RGBColor(0, 0, 0)
+    for r in p_jakarta.runs[1:]:
+        r.text = ""
+
+    # 12. Hapus tab kosong setelah tanggal
+    p_tabs2 = doc.paragraphs[7]._p
+    p_tabs2.getparent().remove(p_tabs2)
+
+    # 13. Hapus 2 baris kosong manual tanda tangan agar tidak meluber ke lembar ke-2
+    p_sig1 = doc.paragraphs[9]._p
+    p_sig1.getparent().remove(p_sig1)
+    p_sig2 = doc.paragraphs[9]._p
+    p_sig2.getparent().remove(p_sig2)
+
+    # Beri spasi tanda tangan vertikal yang pas (45 pt) langsung pada nama Kabag TU
+    p_iwan = doc.paragraphs[9]
+    p_iwan.paragraph_format.space_before = Pt(45)
 
     output_stream = io.BytesIO()
     doc.save(output_stream)
@@ -121,7 +173,7 @@ st.title("📄 Generator Tanda Penyerahan Skripsi")
 st.subheader("Program Studi Sejarah dan Peradaban Islam (SPI)")
 st.caption("Fakultas Adab dan Humaniora — UIN Syarif Hidayatullah Jakarta")
 
-st.info("💡 Isi formulir di bawah ini. Dokumen dapat diunduh langsung dalam format **PDF (siap cetak)** maupun **Word (.docx)**.")
+st.info("💡 Hasil dokumen dijamin pas **1 lembar A4** (tidak meluber ke halaman 2). Format tersedia dalam **PDF (siap cetak)** dan **Word (.docx)**.")
 
 # Form Input
 with st.form("form_skripsi"):
@@ -170,7 +222,7 @@ with st.form("form_skripsi"):
         with col_u4:
             penguji2_nip = st.text_input("Nomor NIP / NIDN Penguji 2", placeholder="18 digit (NIP) atau 10 digit (NIDN)")
 
-    submitted = st.form_submit_button("🚀 Proses & Buat Dokumen", use_container_width=True)
+    submitted = st.form_submit_button("🚀 Proses & Buat Dokumen (1 Lembar)", use_container_width=True)
 
 if submitted:
     if not nama.strip():
@@ -200,19 +252,19 @@ if submitted:
                 "penguji2_nip": penguji2_nip,
             }
 
-            with st.spinner("Sedang memproses dokumen..."):
+            with st.spinner("Sedang memproses dokumen agar pas 1 lembar..."):
                 docx_bytes = generate_document(template_file, payload)
                 pdf_bytes = convert_docx_to_pdf(docx_bytes)
                 clean_nim = "".join(c for c in nim if c.isalnum())
 
-            st.success("✅ Dokumen berhasil dibuat!")
+            st.success("✅ Dokumen berhasil dibuat tepat 1 lembar A4!")
             st.markdown("##### Pilih format unduhan:")
 
             col_dl1, col_dl2 = st.columns(2)
             with col_dl1:
                 if pdf_bytes:
                     st.download_button(
-                        label="📄 Unduh PDF (Siap Cetak)",
+                        label="📄 Unduh PDF (Pas 1 Lembar)",
                         data=pdf_bytes,
                         file_name=f"Tanda_Bukti_Penyerahan_Skripsi_{clean_nim}.pdf",
                         mime="application/pdf",
