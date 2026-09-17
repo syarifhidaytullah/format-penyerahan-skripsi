@@ -32,12 +32,6 @@ def format_tanggal_indo(d: datetime.date) -> str:
     return f"{d.day} {BULAN_ID.get(d.month, '')} {d.year}"
 
 def format_nip_nidn(raw_val: str) -> str:
-    """
-    Mendeteksi otomatis NIP vs NIDN:
-    - 18 digit: NIP (PNS/ASN)
-    - 10 digit: NIDN (Dosen Tetap/Non-PNS)
-    - Jika user sudah menulis 'NIP' atau 'NIDN', gunakan input apa adanya.
-    """
     val = raw_val.strip()
     if not val:
         return ""
@@ -97,37 +91,34 @@ def render_saweria_box(is_downloaded: bool = False):
         use_container_width=True
     )
 
+def get_user_field(key_names: list[str], default: str = "") -> str:
+    """Mengambil nilai tersimpan dari form lain agar mahasiswa tidak perlu ketik ulang."""
+    for k in key_names:
+        val = st.session_state.get(k)
+        if val and isinstance(val, str) and val.strip():
+            return val.strip()
+    return default
+
 # ==========================================
-# FUNGSI DOKUMEN 1: PENYERAHAN SKRIPSI
+# FUNGSI GENERATOR DOKUMEN (WORD & TEMPLATE)
 # ==========================================
 def generate_penyerahan_document(template_path: str, data: dict) -> bytes:
     doc = Document(template_path)
-
-    # 1. Atur margin agar pas 1 lembar A4
     sec = doc.sections[0]
     sec.top_margin = Mm(15)
     sec.bottom_margin = Mm(12)
     sec.left_margin = Mm(20)
     sec.right_margin = Mm(20)
 
-    # 2. Nama Mahasiswa (P1)
     doc.paragraphs[1].runs[-1].text = f"\t: {data['nama']}"
-
-    # 3. NIM (P2)
     doc.paragraphs[2].runs[-1].text = f"\t: {data['nim']}"
-
-    # 4. Program Studi (P3)
     if data.get("prodi"):
         doc.paragraphs[3].runs[-1].text = data["prodi"]
 
-    # 5. Tanggal Sidang (P4)
     doc.paragraphs[4].runs[-1].text = f": {data['tanggal_sidang']}"
     doc.paragraphs[4].runs[-1].font.color.rgb = RGBColor(0, 0, 0)
-
-    # 6. Judul Skripsi (P5)
     doc.paragraphs[5].runs[-1].text = f"\t: {data['judul']}"
 
-    # 7. Padding 1 baris antara judul skripsi dan tabel (pertahankan P6, hapus P7)
     p7 = doc.paragraphs[7]._p
     p7.getparent().remove(p7)
     p6 = doc.paragraphs[6]
@@ -135,7 +126,6 @@ def generate_penyerahan_document(template_path: str, data: dict) -> bytes:
     p6.paragraph_format.space_after = Pt(0)
     p6.paragraph_format.line_spacing = 1.0
 
-    # 8. Optimalisasi ukuran baris dan teks tabel agar hemat ruang dan presisi
     table = doc.tables[0]
     xml_ns = nsdecls("w")
     for r in table.rows:
@@ -152,7 +142,6 @@ def generate_penyerahan_document(template_path: str, data: dict) -> bytes:
                 for run in p.runs:
                     run.font.size = Pt(10.5)
 
-    # 9. Data Dosen Pembimbing & Penguji (Tabel baris 2, 3, 4)
     def update_dosen(cell, nama, nip_raw):
         if nama.strip():
             cell.paragraphs[0].text = nama.strip()
@@ -170,11 +159,9 @@ def generate_penyerahan_document(template_path: str, data: dict) -> bytes:
     if data.get("penguji2_nama"):
         update_dosen(table.rows[4].cells[1], data["penguji2_nama"], data.get("penguji2_nip", ""))
 
-    # 10. Hapus tab kosong sebelum tanggal
     p_tabs = doc.paragraphs[7]._p
     p_tabs.getparent().remove(p_tabs)
 
-    # 11. Tempat & Tanggal Dokumen (P7 setelah penghapusan p_tabs)
     p_jakarta = doc.paragraphs[7]
     tempat_tgl = f"{data['tempat']}, {data['tanggal_penyerahan']}"
     p_jakarta.runs[0].text = tempat_tgl
@@ -182,17 +169,14 @@ def generate_penyerahan_document(template_path: str, data: dict) -> bytes:
     for r in p_jakarta.runs[1:]:
         r.text = ""
 
-    # 12. Hapus tab kosong setelah tanggal
     p_tabs2 = doc.paragraphs[8]._p
     p_tabs2.getparent().remove(p_tabs2)
 
-    # 13. Hapus 2 baris kosong manual tanda tangan agar tidak meluber ke lembar ke-2
     p_sig1 = doc.paragraphs[10]._p
     p_sig1.getparent().remove(p_sig1)
     p_sig2 = doc.paragraphs[10]._p
     p_sig2.getparent().remove(p_sig2)
 
-    # Beri spasi tanda tangan vertikal yang pas (40 pt) langsung pada nama Kabag TU
     p_iwan = doc.paragraphs[10]
     p_iwan.paragraph_format.space_before = Pt(40)
 
@@ -200,52 +184,24 @@ def generate_penyerahan_document(template_path: str, data: dict) -> bytes:
     doc.save(output_stream)
     return output_stream.getvalue()
 
-# ==========================================
-# FUNGSI DOKUMEN 2: PENDAFTARAN UJIAN SKRIPSI
-# ==========================================
 def generate_ujian_document(template_path: str, data: dict) -> bytes:
     doc = Document(template_path)
-
-    # 1. Nama Lengkap (P1)
     doc.paragraphs[1].runs[-1].text = f"\t: {data['nama']}"
-
-    # 2. NIM (P2)
     doc.paragraphs[2].runs[-1].text = f"\t: {data['nim']}"
-
-    # 3. Program Studi (P3)
     doc.paragraphs[3].runs[-1].text = f"\t: {data['prodi']}"
-
-    # 4. Tempat/Tanggal Lahir (P4)
     doc.paragraphs[4].runs[-1].text = f"\t: {data['ttl']}"
-
-    # 5. Asal SLTA (P5)
     doc.paragraphs[5].runs[-1].text = f"\t: {data['asal_slta']}"
-
-    # 6. Alamat Sekarang (P6)
     doc.paragraphs[6].runs[-1].text = f"\t: {data['alamat']}"
-
-    # 7. IPK Sementara (P7)
     doc.paragraphs[7].runs[-1].text = f"\t: {data['ipk']}"
-
-    # 8. Judul Skripsi (P8)
     doc.paragraphs[8].runs[-1].text = f"\t: {data['judul']}"
-
-    # 9. No. Telpon/Email (P9)
     doc.paragraphs[9].runs[-1].text = f": {data['kontak']}"
-
-    # 10. Kalimat Permohonan (P11)
     doc.paragraphs[11].runs[0].text = f"Dengan ini mengajukan permohonan ujian skripsi pada semester {data['semester']} Tahun Akademik {data['tahun_akademik']}"
-
-    # 11. Tempat & Tanggal Dokumen (P13)
     doc.paragraphs[13].runs[0].text = f"{data['tempat']}, {data['tanggal']}"
     for r in doc.paragraphs[13].runs[1:]:
         r.text = ""
-
-    # 12. Nama & NIM Mahasiswa (P16, P17)
     doc.paragraphs[16].runs[0].text = data["nama"]
     doc.paragraphs[17].runs[0].text = f"NIM : {data['nim']}"
 
-    # 13. Hapus baris Catatan & Tanda Bintang di bagian bawah jika ada
     for i in range(len(doc.paragraphs) - 1, -1, -1):
         txt = doc.paragraphs[i].text.strip()
         if txt.startswith("Catatan") or "Tanda Bintang" in txt:
@@ -256,65 +212,20 @@ def generate_ujian_document(template_path: str, data: dict) -> bytes:
     doc.save(output_stream)
     return output_stream.getvalue()
 
-# ==========================================
-# FUNGSI DOKUMEN 3: PENDAFTARAN SIDANG SKRIPSI (MAP KUNING)
-# ==========================================
 def generate_sidang_document(template_path: str, data: dict) -> bytes:
     doc = Document(template_path)
-
-    # 1. Nama Mahasiswa (P0)
     doc.paragraphs[0].runs[-1].text = f"\t: {data['nama']}"
-
-    # 2. NIM (P1)
     doc.paragraphs[1].runs[-1].text = f"\t: {data['nim']}"
-
-    # 3. Program Studi (P2)
     doc.paragraphs[2].runs[-1].text = f"\t: {data['prodi']}"
-
-    # 4. Tanggal & Tempat Dokumen (P19)
     doc.paragraphs[19].runs[0].text = f"\t{data['tempat']}, {data['tanggal']}"
     for r in doc.paragraphs[19].runs[1:]:
         r.text = ""
-
-    # 5. Perbaiki koma ganda pada nama Kabag TU
     doc.paragraphs[24].runs[-1].text = "Iwan Kurniawan, S.Pd., M.Si."
 
     output_stream = io.BytesIO()
     doc.save(output_stream)
     return output_stream.getvalue()
 
-# ==========================================
-# FUNGSI DOKUMEN 4: SURAT PERNYATAAN IZIN PUBLIKASI
-# ==========================================
-def generate_publikasi_document(template_path: str, data: dict) -> bytes:
-    doc = Document(template_path)
-    replacements = {
-        "{nama}": data["nama"],
-        "{nim}": data["nim"],
-        "{telepon}": data["telepon"],
-        "{jurusan}": data["jurusan"],
-        "{pembimbing}": data["pembimbing"],
-        "{judul}": data["judul"],
-        "{tempat}": data["tempat"],
-        "{tanggal}": data["tanggal"]
-    }
-
-    for t in doc.tables:
-        for row in t.rows:
-            for cell in row.cells:
-                for p in cell.paragraphs:
-                    for r in p.runs:
-                        for k, v in replacements.items():
-                            if k in r.text:
-                                r.text = r.text.replace(k, v)
-
-    output_stream = io.BytesIO()
-    doc.save(output_stream)
-    return output_stream.getvalue()
-
-# ==========================================
-# FUNGSI DOKUMEN 5: LEMBAR BIMBINGAN SKRIPSI
-# ==========================================
 def generate_bimbingan_document(template_path: str, data: dict) -> bytes:
     doc = Document(template_path)
     replacements = {
@@ -329,7 +240,6 @@ def generate_bimbingan_document(template_path: str, data: dict) -> bytes:
         "{pembimbing_nama}": data["pembimbing_nama"],
         "{pembimbing_nip}": data["pembimbing_nip"]
     }
-
     for t in doc.tables:
         for row in t.rows:
             for cell in row.cells:
@@ -338,14 +248,10 @@ def generate_bimbingan_document(template_path: str, data: dict) -> bytes:
                         for k, v in replacements.items():
                             if k in r.text:
                                 r.text = r.text.replace(k, v)
-
     output_stream = io.BytesIO()
     doc.save(output_stream)
     return output_stream.getvalue()
 
-# ==========================================
-# FUNGSI DOKUMEN 6: LEMBAR PERNYATAAN SKRIPSI
-# ==========================================
 def generate_pernyataan_document(template_path: str, data: dict) -> bytes:
     doc = Document(template_path)
     replacements = {
@@ -356,7 +262,6 @@ def generate_pernyataan_document(template_path: str, data: dict) -> bytes:
         "{tanggal}": data["tanggal"],
         "{materai_placeholder}": data.get("materai_placeholder", "")
     }
-
     for t in doc.tables:
         for row in t.rows:
             for cell in row.cells:
@@ -365,13 +270,35 @@ def generate_pernyataan_document(template_path: str, data: dict) -> bytes:
                         for k, v in replacements.items():
                             if k in r.text:
                                 r.text = r.text.replace(k, v)
-
     for p in doc.paragraphs:
         for r in p.runs:
             for k, v in replacements.items():
                 if k in r.text:
                     r.text = r.text.replace(k, v)
+    output_stream = io.BytesIO()
+    doc.save(output_stream)
+    return output_stream.getvalue()
 
+def generate_publikasi_document(template_path: str, data: dict) -> bytes:
+    doc = Document(template_path)
+    replacements = {
+        "{nama}": data["nama"],
+        "{nim}": data["nim"],
+        "{telepon}": data["telepon"],
+        "{jurusan}": data["jurusan"],
+        "{pembimbing}": data["pembimbing"],
+        "{judul}": data["judul"],
+        "{tempat}": data["tempat"],
+        "{tanggal}": data["tanggal"]
+    }
+    for t in doc.tables:
+        for row in t.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    for r in p.runs:
+                        for k, v in replacements.items():
+                            if k in r.text:
+                                r.text = r.text.replace(k, v)
     output_stream = io.BytesIO()
     doc.save(output_stream)
     return output_stream.getvalue()
@@ -393,16 +320,11 @@ with st.sidebar:
         use_container_width=True
     )
 
-# Tab Pilihan Berkas & Layanan (8 Tab Lengkap)
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-    "📌 Panduan & Checklist Persyaratan",
-    "📄 Tanda Bukti Penyerahan Skripsi",
-    "📝 Formulir Pendaftaran Ujian Skripsi",
-    "📋 Formulir Pendaftaran Sidang (Persyaratan)",
-    "📖 Lembar Bimbingan Skripsi",
-    "✍️ Lembar Pernyataan Skripsi",
-    "🏛️ Surat Izin Publikasi Repository",
-    "✉️ Template Email Siap Salin"
+# 3 Tab Utama Berdasarkan Alur Mahasiswa (Sangat Responsif & Nyaman di HP)
+tab1, tab2, tab3 = st.tabs([
+    "📌 Panduan & Alur Berkas",
+    "📝 Berkas Pendaftaran (Pra-Sidang)",
+    "🎓 Berkas Kelulusan (Pasca-Sidang)"
 ])
 
 # ==========================================
@@ -411,13 +333,12 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
 with tab1:
     st.info("💡 Informasi resmi berkas persyaratan ujian skripsi dan pengurusan BAP berdasarkan panduan Program Studi Sejarah dan Peradaban Islam (SPI) FAH UIN Syarif Hidayatullah Jakarta.")
     
-    # Bagian 1: Persyaratan Sidang Skripsi (Pra-Sidang)
-    st.markdown("### 📋 1. Persyaratan Sidang Skripsi (12 Berkas)")
+    st.markdown("### 📋 1. Persyaratan Sidang Skripsi (12 Berkas Map Kuning)")
     st.caption("Semua berkas persyaratan ini dimasukkan ke dalam map kuning dan dikirimkan juga melalui email ke prodi.")
     
     col_chk1, col_chk2 = st.columns(2)
     with col_chk1:
-        st.checkbox("1. Formulir Pendaftaran Sidang Skripsi (dibuat di Tab 4)")
+        st.checkbox("1. Formulir Pendaftaran Sidang Skripsi *(tersedia di Tab 📝 Pra-Sidang)*")
         st.checkbox("2. Nilai IPK yang sudah dilegalisir")
         st.checkbox("3. Rekapitulasi Pembayaran Semester yang dilegalisir")
         st.checkbox("4. Lembar Pengesahan Skripsi (1 lembar)")
@@ -427,20 +348,19 @@ with tab1:
         st.checkbox("7. Sertifikat Lulus TOAFL dan TOEFL")
         st.checkbox("8. Lulus Praktik Ibadah dan Qiro'ah (sesuai KRS Semester 2)")
         st.checkbox("9. Fotokopi Sertifikat Propesa / PBAK")
-        st.checkbox("10. Surat Pernyataan Skripsi (dibuat di Tab 6)")
+        st.checkbox("10. Surat Pernyataan Skripsi *(tersedia di Tab 📝 Pra-Sidang)*")
         st.checkbox("11. Surat Pernyataan Keaslian Berkas")
-        st.checkbox("12. Jurnal / Lembar Catatan Bimbingan Dosen (dibuat di Tab 5)")
+        st.checkbox("12. Jurnal / Lembar Catatan Bimbingan Dosen *(tersedia di Tab 📝 Pra-Sidang)*")
 
     st.markdown("---")
 
-    # Bagian 2: Persyaratan BAP dan Transkrip Nilai (Pasca-Sidang)
     st.markdown("### 🎓 2. Persyaratan BAP & Transkrip Nilai (Pasca-Sidang)")
     st.caption("Alur pengurusan Berita Acara Pemeriksaan (BAP) dan Transkrip Nilai setelah selesai ujian munaqasyah:")
     
     st.markdown("""
     1. **Menyerahkan Hasil Revisi Skripsi:**
        - Menyerahkan naskah revisi yang sudah sesuai dengan pedoman penulisan ke Dosen Penguji dan Dosen Pembimbing.
-       - Dibuktikan dengan **Lembar Tanda Bukti Penyerahan Skripsi** (dibuat di Tab 2).
+       - Dibuktikan dengan **Lembar Tanda Bukti Penyerahan Skripsi** *(tersedia di Tab 🎓 Pasca-Sidang)*.
     2. **Menyerahkan Hasil Revisi Skripsi dalam Bentuk PDF:**
        - Dokumen skripsi dalam bentuk PDF yang sudah disusun sesuai panduan penulisan (*dengan watermark resmi UIN*).
     3. **Submit Artikel Jurnal Ilmiah:**
@@ -448,9 +368,9 @@ with tab1:
          - Jurnal **Socio Historica** (Jurnal Ilmiah Prodi SPI): `https://journal.uinjkt.ac.id/index.php/sh`
          - Atau ke jurnal ilmiah terakreditasi lainnya.
     4. **Surat Pernyataan Izin Publikasi Repository:**
-       - Menandatangani Surat Pernyataan Izin Publikasi di Repository Perpustakaan UIN di atas materai 10.000 (bisa dibuat di Tab 7).
+       - Menandatangani Surat Pernyataan Izin Publikasi di Repository Perpustakaan UIN di atas materai 10.000 *(tersedia di Tab 🎓 Pasca-Sidang)*.
     5. **Pengiriman Seluruh Berkas Bukti:**
-       - Seluruh bukti dikirimkan melalui email resmi program studi.
+       - Seluruh bukti dikirimkan melalui email resmi prodi *(Template email siap salin & buka di Gmail tersedia di Tab 🎓 Pasca-Sidang)*.
     """)
 
     col_btn_jurnal, col_btn_template = st.columns(2)
@@ -461,9 +381,8 @@ with tab1:
             use_container_width=True
         )
     with col_btn_template:
-        st.info("✉️ Format teks email resmi permohonan BAP bisa langsung disalin pada Tab 8.")
+        st.info("✉️ Format teks email resmi permohonan BAP bisa langsung disalin pada Tab 🎓 Pasca-Sidang.")
 
-    # Alamat Email Resmi Prodi
     st.markdown("---")
     st.markdown("### 📬 Alamat Email Resmi Program Studi SPI")
     st.markdown("""
@@ -475,678 +394,698 @@ with tab1:
     render_saweria_box()
 
 # ==========================================
-# TAB 2: FORM PENYERAHAN SKRIPSI
+# TAB 2: BERKAS PENDAFTARAN (PRA-SIDANG)
 # ==========================================
 with tab2:
-    st.info("💡 Formulir tanda bukti penyerahan skripsi pasca munaqasyah ke pihak Fakultas, Prodi, dan Perpustakaan.")
-    
-    with st.form("form_penyerahan"):
-        col1, col2 = st.columns(2)
-        with col1:
-            p_nama = st.text_input("Nama Lengkap Mahasiswa", placeholder="Contoh: Syarif Hidayatullah", key="p_nama")
-        with col2:
-            p_nim = st.text_input("NIM", placeholder="Contoh: 11200210000088", key="p_nim")
-
-        p_prodi = st.text_input("Program Studi", value="Sejarah dan Peradaban Islam", key="p_prodi")
-        p_tgl_sidang = st.date_input("Tanggal Sidang Munaqasyah", value=datetime.date.today(), key="p_sidang")
-        p_judul = st.text_area("Judul Skripsi", placeholder="Tuliskan judul skripsi naskah final...", height=90, key="p_judul")
-
-        st.markdown("##### Tempat & Tanggal Penandatanganan Surat")
-        col_pt1, col_pt2 = st.columns(2)
-        with col_pt1:
-            p_tempat = st.text_input("Tempat Surat", value="Jakarta", key="p_tempat")
-        with col_pt2:
-            p_tgl_penyerahan = st.date_input("Tanggal Surat", value=datetime.date.today(), key="p_tgl")
-
-        with st.expander("🧑‍🏫 Data Dosen Pembimbing & Penguji (Opsional)"):
-            st.caption("Ketik angka nomornya saja. Sistem otomatis mendeteksi: **18 digit = NIP**, **10 digit = NIDN**.")
-            st.markdown("**Dosen Pembimbing Skripsi**")
-            col_pp1, col_pp2 = st.columns(2)
-            with col_pp1:
-                p_pembimbing_nama = st.text_input("Nama & Gelar Pembimbing", placeholder="Nama Pembimbing", key="p_pnama")
-            with col_pp2:
-                p_pembimbing_nip = st.text_input("Nomor NIP / NIDN Pembimbing", placeholder="Nomor NIP/NIDN", key="p_pnip")
-
-            st.markdown("**Dosen Penguji 1**")
-            col_pu1, col_pu2 = st.columns(2)
-            with col_pu1:
-                p_penguji1_nama = st.text_input("Nama & Gelar Penguji 1", placeholder="Nama Penguji 1", key="p_u1nama")
-            with col_pu2:
-                p_penguji1_nip = st.text_input("Nomor NIP / NIDN Penguji 1", placeholder="Nomor NIP/NIDN", key="p_u1nip")
-
-            st.markdown("**Dosen Penguji 2**")
-            col_pu3, col_pu4 = st.columns(2)
-            with col_pu3:
-                p_penguji2_nama = st.text_input("Nama & Gelar Penguji 2", placeholder="Nama Penguji 2", key="p_u2nama")
-            with col_pu4:
-                p_penguji2_nip = st.text_input("Nomor NIP / NIDN Penguji 2", placeholder="Nomor NIP/NIDN", key="p_u2nip")
-
-        p_submitted = st.form_submit_button("🚀 Buat Dokumen Penyerahan (1 Lembar)", use_container_width=True)
-
-    if p_submitted:
-        if not p_nama.strip():
-            st.error("⚠️ Nama Lengkap wajib diisi!")
-        elif not p_nim.strip():
-            st.error("⚠️ NIM wajib diisi!")
-        elif not p_judul.strip():
-            st.error("⚠️ Judul Skripsi wajib diisi!")
-        else:
-            tpl_penyerahan = os.path.join(os.path.dirname(__file__), "template.docx")
-            if not os.path.exists(tpl_penyerahan):
-                st.error("❌ File template.docx tidak ditemukan di direktori aplikasi!")
-            else:
-                payload_p = {
-                    "nama": p_nama.strip(),
-                    "nim": p_nim.strip(),
-                    "prodi": p_prodi.strip(),
-                    "tanggal_sidang": format_tanggal_indo(p_tgl_sidang),
-                    "judul": p_judul.strip(),
-                    "tempat": p_tempat.strip() or "Jakarta",
-                    "tanggal_penyerahan": format_tanggal_indo(p_tgl_penyerahan),
-                    "pembimbing_nama": p_pembimbing_nama,
-                    "pembimbing_nip": p_pembimbing_nip,
-                    "penguji1_nama": p_penguji1_nama,
-                    "penguji1_nip": p_penguji1_nip,
-                    "penguji2_nama": p_penguji2_nama,
-                    "penguji2_nip": p_penguji2_nip,
-                }
-
-                with st.spinner("Sedang memproses dokumen agar pas 1 lembar..."):
-                    docx_bytes_p = generate_penyerahan_document(tpl_penyerahan, payload_p)
-                    pdf_bytes_p = convert_docx_to_pdf(docx_bytes_p)
-                    clean_nim_p = "".join(c for c in p_nim if c.isalnum())
-                    st.session_state["p_doc"] = {
-                        "docx": docx_bytes_p,
-                        "pdf": pdf_bytes_p,
-                        "nim": clean_nim_p
-                    }
-
-    if "p_doc" in st.session_state:
-        p_data = st.session_state["p_doc"]
-        st.success("✅ Dokumen berhasil dibuat tepat 1 lembar A4!")
-        st.markdown("##### Pilih format unduhan:")
-        col_pdl1, col_pdl2 = st.columns(2)
-        with col_pdl1:
-            if p_data["pdf"]:
-                btn_p_pdf = st.download_button(
-                    label="📄 Unduh PDF (Pas 1 Lembar)",
-                    data=p_data["pdf"],
-                    file_name=f"Tanda_Bukti_Penyerahan_Skripsi_{p_data['nim']}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    key="dl_pdf_p"
-                )
-                if btn_p_pdf:
-                    st.session_state["p_downloaded"] = True
-                    st.toast("🎉 Berkas PDF berhasil diunduh! Sukses untuk skripsinya ya! 🎓✨")
-                    st.balloons()
-            else:
-                st.warning("Konversi PDF tidak tersedia.")
-        with col_pdl2:
-            btn_p_docx = st.download_button(
-                label="📝 Unduh Word (.docx)",
-                data=p_data["docx"],
-                file_name=f"Tanda_Bukti_Penyerahan_Skripsi_{p_data['nim']}.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                use_container_width=True,
-                key="dl_docx_p"
-            )
-            if btn_p_docx:
-                st.session_state["p_downloaded"] = True
-                st.toast("🎉 Berkas Word berhasil diunduh! Sukses untuk skripsinya ya! 🎓✨")
-                st.balloons()
-
-        render_saweria_box(st.session_state.get("p_downloaded", False))
-
-# ==========================================
-# TAB 3: FORM PENDAFTARAN UJIAN SKRIPSI
-# ==========================================
-with tab3:
-    st.info("💡 Formulir permohonan pendaftaran ujian skripsi munaqasyah untuk diajukan ke Tata Usaha/Fakultas.")
-    
-    with st.form("form_ujian"):
-        col_u1, col_u2 = st.columns(2)
-        with col_u1:
-            u_nama = st.text_input("Nama Lengkap", placeholder="Contoh: Syarif Hidayatullah", key="u_nama")
-        with col_u2:
-            u_nim = st.text_input("NIM", placeholder="Contoh: 11200210000088", key="u_nim")
-
-        u_prodi = st.text_input("Program Studi", value="Sejarah dan Peradaban Islam", key="u_prodi")
-
-        col_ttl1, col_ttl2 = st.columns(2)
-        with col_ttl1:
-            u_kota_lahir = st.text_input("Tempat Lahir", placeholder="Contoh: Tangerang", key="u_kota")
-        with col_ttl2:
-            u_tgl_lahir = st.date_input("Tanggal Lahir", value=datetime.date(2002, 1, 1), key="u_tgl_lahir")
-
-        col_slta, col_ipk = st.columns(2)
-        with col_slta:
-            u_asal_slta = st.text_input("Asal SLTA (SMA/SMK/MA)", placeholder="Contoh: MAN 1 Tangerang", key="u_slta")
-        with col_ipk:
-            u_ipk = st.text_input("IPK Sementara", placeholder="Contoh: 3.75", key="u_ipk")
-
-        u_alamat = st.text_area("Alamat Sekarang", placeholder="Alamat lengkap domisili saat ini...", height=80, key="u_alamat")
-        u_judul = st.text_area("Judul Skripsi", placeholder="Tuliskan judul skripsi lengkap...", height=90, key="u_judul")
-
-        col_k1, col_k2 = st.columns(2)
-        with col_k1:
-            u_telp = st.text_input("Nomor Telepon / WhatsApp", placeholder="Contoh: 081234567890", key="u_telp")
-        with col_k2:
-            u_email = st.text_input("Alamat Email", placeholder="Contoh: syarif@gmail.com", key="u_email")
-
-        col_sem1, col_sem2 = st.columns(2)
-        with col_sem1:
-            u_semester = st.selectbox("Semester Permohonan", ["Ganjil", "Genap"], key="u_sem")
-        with col_sem2:
-            u_thn_akademik = st.text_input("Tahun Akademik", value="2025/2026", key="u_thn")
-
-        st.markdown("##### Tempat & Tanggal Penandatanganan Surat")
-        col_ut1, col_ut2 = st.columns(2)
-        with col_ut1:
-            u_tempat = st.text_input("Tempat Surat", value="Jakarta", key="u_tempat")
-        with col_ut2:
-            u_tgl_surat = st.date_input("Tanggal Dokumen", value=datetime.date.today(), key="u_tgl_surat")
-
-        u_submitted = st.form_submit_button("🚀 Buat Dokumen Pendaftaran Ujian (1 Lembar)", use_container_width=True)
-
-    if u_submitted:
-        if not u_nama.strip():
-            st.error("⚠️ Nama Lengkap wajib diisi!")
-        elif not u_nim.strip():
-            st.error("⚠️ NIM wajib diisi!")
-        elif not u_judul.strip():
-            st.error("⚠️ Judul Skripsi wajib diisi!")
-        else:
-            tpl_ujian = os.path.join(os.path.dirname(__file__), "template_ujian.docx")
-            if not os.path.exists(tpl_ujian):
-                st.error("❌ File template_ujian.docx tidak ditemukan di direktori aplikasi!")
-            else:
-                # Format kontak gabungan
-                kontak_parts = []
-                if u_telp.strip():
-                    kontak_parts.append(u_telp.strip())
-                if u_email.strip():
-                    kontak_parts.append(u_email.strip())
-                kontak_str = " / ".join(kontak_parts) if kontak_parts else "-"
-
-                ttl_str = f"{u_kota_lahir.strip()}, {format_tanggal_indo(u_tgl_lahir)}" if u_kota_lahir.strip() else format_tanggal_indo(u_tgl_lahir)
-
-                payload_u = {
-                    "nama": u_nama.strip(),
-                    "nim": u_nim.strip(),
-                    "prodi": u_prodi.strip(),
-                    "ttl": ttl_str,
-                    "asal_slta": u_asal_slta.strip() or "-",
-                    "alamat": u_alamat.strip() or "-",
-                    "ipk": u_ipk.strip() or "-",
-                    "judul": u_judul.strip(),
-                    "kontak": kontak_str,
-                    "semester": u_semester,
-                    "tahun_akademik": u_thn_akademik.strip() or "2025/2026",
-                    "tempat": u_tempat.strip() or "Jakarta",
-                    "tanggal": format_tanggal_indo(u_tgl_surat)
-                }
-
-                with st.spinner("Sedang memproses dokumen formulir ujian..."):
-                    docx_bytes_u = generate_ujian_document(tpl_ujian, payload_u)
-                    pdf_bytes_u = convert_docx_to_pdf(docx_bytes_u)
-                    clean_nim_u = "".join(c for c in u_nim if c.isalnum())
-                    st.session_state["u_doc"] = {
-                        "docx": docx_bytes_u,
-                        "pdf": pdf_bytes_u,
-                        "nim": clean_nim_u
-                    }
-
-    if "u_doc" in st.session_state:
-        u_data = st.session_state["u_doc"]
-        st.success("✅ Formulir Pendaftaran Ujian berhasil dibuat tepat 1 lembar A4!")
-        st.markdown("##### Pilih format unduhan:")
-        col_udl1, col_udl2 = st.columns(2)
-        with col_udl1:
-            if u_data["pdf"]:
-                btn_u_pdf = st.download_button(
-                    label="📄 Unduh PDF (Pas 1 Lembar)",
-                    data=u_data["pdf"],
-                    file_name=f"Pendaftaran_Ujian_Skripsi_{u_data['nim']}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    key="dl_pdf_u"
-                )
-                if btn_u_pdf:
-                    st.session_state["u_downloaded"] = True
-                    st.toast("🎉 Formulir Ujian PDF berhasil diunduh! Sukses munaqasyahnya! 🎓✨")
-                    st.balloons()
-            else:
-                st.warning("Konversi PDF tidak tersedia.")
-        with col_udl2:
-            btn_u_docx = st.download_button(
-                label="📝 Unduh Word (.docx)",
-                data=u_data["docx"],
-                file_name=f"Pendaftaran_Ujian_Skripsi_{u_data['nim']}.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                use_container_width=True,
-                key="dl_docx_u"
-            )
-            if btn_u_docx:
-                st.session_state["u_downloaded"] = True
-                st.toast("🎉 Formulir Ujian Word berhasil diunduh! Sukses munaqasyahnya! 🎓✨")
-                st.balloons()
-
-        render_saweria_box(st.session_state.get("u_downloaded", False))
-
-# ==========================================
-# TAB 4: FORMULIR PENDAFTARAN SIDANG (PERSYARATAN MAP KUNING)
-# ==========================================
-with tab4:
-    st.info("💡 Formulir pendaftaran sidang skripsi yang memuat 11 berkas checklist persyaratan untuk dimasukkan ke dalam map kuning.")
-    
-    with st.form("form_sidang"):
-        col_s1, col_s2 = st.columns(2)
-        with col_s1:
-            s_nama = st.text_input("Nama Lengkap", placeholder="Contoh: Syarif Hidayatullah", key="s_nama")
-        with col_s2:
-            s_nim = st.text_input("NIM", placeholder="Contoh: 11200210000088", key="s_nim")
-
-        s_prodi = st.text_input("Program Studi", value="Sejarah dan Peradaban Islam", key="s_prodi")
-
-        st.markdown("##### Tempat & Tanggal Penandatanganan Surat")
-        col_st1, col_st2 = st.columns(2)
-        with col_st1:
-            s_tempat = st.text_input("Tempat Surat", value="Jakarta", key="s_tempat")
-        with col_st2:
-            s_tgl_surat = st.date_input("Tanggal Dokumen", value=datetime.date.today(), key="s_tgl_surat")
-
-        s_submitted = st.form_submit_button("🚀 Buat Dokumen Pendaftaran Sidang (1 Lembar)", use_container_width=True)
-
-    if s_submitted:
-        if not s_nama.strip():
-            st.error("⚠️ Nama Lengkap wajib diisi!")
-        elif not s_nim.strip():
-            st.error("⚠️ NIM wajib diisi!")
-        else:
-            tpl_sidang = os.path.join(os.path.dirname(__file__), "template_sidang.docx")
-            if not os.path.exists(tpl_sidang):
-                st.error("❌ File template_sidang.docx tidak ditemukan di direktori aplikasi!")
-            else:
-                payload_s = {
-                    "nama": s_nama.strip(),
-                    "nim": s_nim.strip(),
-                    "prodi": s_prodi.strip(),
-                    "tempat": s_tempat.strip() or "Jakarta",
-                    "tanggal": format_tanggal_indo(s_tgl_surat)
-                }
-
-                with st.spinner("Sedang memproses dokumen pendaftaran sidang..."):
-                    docx_bytes_s = generate_sidang_document(tpl_sidang, payload_s)
-                    pdf_bytes_s = convert_docx_to_pdf(docx_bytes_s)
-                    clean_nim_s = "".join(c for c in s_nim if c.isalnum())
-                    st.session_state["s_doc"] = {
-                        "docx": docx_bytes_s,
-                        "pdf": pdf_bytes_s,
-                        "nim": clean_nim_s
-                    }
-
-    if "s_doc" in st.session_state:
-        s_data = st.session_state["s_doc"]
-        st.success("✅ Formulir Pendaftaran Sidang berhasil dibuat tepat 1 lembar A4!")
-        st.markdown("##### Pilih format unduhan:")
-        col_sdl1, col_sdl2 = st.columns(2)
-        with col_sdl1:
-            if s_data["pdf"]:
-                btn_s_pdf = st.download_button(
-                    label="📄 Unduh PDF (Pas 1 Lembar)",
-                    data=s_data["pdf"],
-                    file_name=f"Pendaftaran_Sidang_Skripsi_{s_data['nim']}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    key="dl_pdf_s"
-                )
-                if btn_s_pdf:
-                    st.session_state["s_downloaded"] = True
-                    st.toast("🎉 Formulir Sidang PDF berhasil diunduh! Sukses persyaratannya! 🎓✨")
-                    st.balloons()
-            else:
-                st.warning("Konversi PDF tidak tersedia.")
-        with col_sdl2:
-            btn_s_docx = st.download_button(
-                label="📝 Unduh Word (.docx)",
-                data=s_data["docx"],
-                file_name=f"Pendaftaran_Sidang_Skripsi_{s_data['nim']}.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                use_container_width=True,
-                key="dl_docx_s"
-            )
-            if btn_s_docx:
-                st.session_state["s_downloaded"] = True
-                st.toast("🎉 Formulir Sidang Word berhasil diunduh! Sukses persyaratannya! 🎓✨")
-                st.balloons()
-
-        render_saweria_box(st.session_state.get("s_downloaded", False))
-
-# ==========================================
-# TAB 5: LEMBAR BIMBINGAN SKRIPSI
-# ==========================================
-with tab5:
-    st.info("💡 Lembar Catatan Bimbingan Skripsi resmi prodi dengan tabel log bimbingan 8 baris (minimal 6 kali bimbingan) lengkap dengan tanda tangan Ketua Program Studi dan Dosen Pembimbing.")
-
-    with st.form("form_bimbingan"):
-        col_b1, col_b2 = st.columns(2)
-        with col_b1:
-            b_nama = st.text_input("Nama Lengkap Mahasiswa", value=st.session_state.get("s_nama", "") or st.session_state.get("p_nama", ""), placeholder="Contoh: Syarif Hidayatullah", key="b_nama")
-            b_nim = st.text_input("NIM", value=st.session_state.get("s_nim", "") or st.session_state.get("p_nim", ""), placeholder="Contoh: 11210220000073", key="b_nim")
-        with col_b2:
-            b_prodi = st.text_input("Program Studi", value="Sejarah dan Peradaban Islam", key="b_prodi")
-            b_tempat = st.text_input("Tempat Surat", value="Jakarta", key="b_tempat")
-
-        b_tgl = st.date_input("Tanggal Lembar Bimbingan", value=datetime.date.today(), key="b_tgl")
-        b_judul = st.text_area("Judul Skripsi", value=st.session_state.get("p_judul", ""), placeholder="Tuliskan judul lengkap skripsi...", height=80, key="b_judul")
-
-        st.markdown("##### Dosen Pembimbing Skripsi")
-        st.caption("Ketik angka nomornya saja. Sistem otomatis mendeteksi: **18 digit = NIP**, **10 digit = NIDN**.")
-        col_bp1, col_bp2 = st.columns(2)
-        with col_bp1:
-            b_pembimbing_nama = st.text_input("Nama & Gelar Dosen Pembimbing", placeholder="Contoh: Dr. Halimatus Sa'diyah, M.A.", key="b_pnama")
-        with col_bp2:
-            b_pembimbing_nip = st.text_input("Nomor NIP / NIDN Dosen Pembimbing", placeholder="Contoh: 198203152009012011", key="b_pnip")
-
-        with st.expander("⚙️ Data Ketua Program Studi (Default: Kaprodi SPI)"):
-            col_bk1, col_bk2 = st.columns(2)
-            with col_bk1:
-                b_kaprodi_nama = st.text_input("Nama Kaprodi", value="Dr. Zakiya Darojat, M.A.", key="b_knama")
-            with col_bk2:
-                b_kaprodi_nip = st.text_input("NIP/NIDN Kaprodi", value="197405302005012006", key="b_knip")
-
-        b_submitted = st.form_submit_button("🚀 Buat Lembar Bimbingan Skripsi (1 Lembar)", use_container_width=True)
-
-    if b_submitted:
-        if not b_nama.strip():
-            st.error("⚠️ Nama Lengkap wajib diisi!")
-        elif not b_nim.strip():
-            st.error("⚠️ NIM wajib diisi!")
-        elif not b_judul.strip():
-            st.error("⚠️ Judul Skripsi wajib diisi!")
-        else:
-            tpl_bimbingan = os.path.join(os.path.dirname(__file__), "template_bimbingan.docx")
-            if not os.path.exists(tpl_bimbingan):
-                st.error("❌ File template_bimbingan.docx tidak ditemukan di direktori aplikasi!")
-            else:
-                payload_b = {
-                    "nama": b_nama.strip(),
-                    "nim": b_nim.strip(),
-                    "prodi": b_prodi.strip() or "Sejarah dan Peradaban Islam",
-                    "judul": b_judul.strip(),
-                    "tempat": b_tempat.strip() or "Jakarta",
-                    "tanggal": format_tanggal_indo(b_tgl),
-                    "kaprodi_nama": b_kaprodi_nama.strip() or "Dr. Zakiya Darojat, M.A.",
-                    "kaprodi_nip": format_nip_nidn(b_kaprodi_nip.strip()) if b_kaprodi_nip.strip() else "NIP. 197405302005012006",
-                    "pembimbing_nama": b_pembimbing_nama.strip() or "Nama Dosen Pembimbing",
-                    "pembimbing_nip": format_nip_nidn(b_pembimbing_nip.strip()) if b_pembimbing_nip.strip() else "NIP/NIDN. "
-                }
-
-                with st.spinner("Sedang memproses Lembar Bimbingan Skripsi..."):
-                    docx_bytes_b = generate_bimbingan_document(tpl_bimbingan, payload_b)
-                    pdf_bytes_b = convert_docx_to_pdf(docx_bytes_b)
-                    clean_nim_b = "".join(c for c in b_nim if c.isalnum())
-                    st.session_state["b_doc"] = {
-                        "docx": docx_bytes_b,
-                        "pdf": pdf_bytes_b,
-                        "nim": clean_nim_b
-                    }
-
-    if "b_doc" in st.session_state:
-        b_data = st.session_state["b_doc"]
-        st.success("✅ Lembar Bimbingan Skripsi berhasil dibuat tepat 1 lembar A4!")
-        st.markdown("##### Pilih format unduhan:")
-        col_bdl1, col_bdl2 = st.columns(2)
-        with col_bdl1:
-            if b_data["pdf"]:
-                btn_b_pdf = st.download_button(
-                    label="📄 Unduh PDF (Pas 1 Lembar)",
-                    data=b_data["pdf"],
-                    file_name=f"Lembar_Bimbingan_Skripsi_{b_data['nim']}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    key="dl_pdf_b"
-                )
-                if btn_b_pdf:
-                    st.session_state["b_downloaded"] = True
-                    st.toast("🎉 Lembar Bimbingan PDF berhasil diunduh! Sukses untuk bimbingannya! 🎓✨")
-                    st.balloons()
-            else:
-                st.warning("Konversi PDF tidak tersedia.")
-        with col_bdl2:
-            btn_b_docx = st.download_button(
-                label="📝 Unduh Word (.docx)",
-                data=b_data["docx"],
-                file_name=f"Lembar_Bimbingan_Skripsi_{b_data['nim']}.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                use_container_width=True,
-                key="dl_docx_b"
-            )
-            if btn_b_docx:
-                st.session_state["b_downloaded"] = True
-                st.toast("🎉 Lembar Bimbingan Word berhasil diunduh! Sukses untuk bimbingannya! 🎓✨")
-                st.balloons()
-
-        render_saweria_box(st.session_state.get("b_downloaded", False))
-
-# ==========================================
-# TAB 6: LEMBAR PERNYATAAN SKRIPSI
-# ==========================================
-with tab6:
-    st.info("💡 Lembar Pernyataan Skripsi (Bebas Plagiasi & Orisinalitas Penelitian) sesuai format resmi akademik UIN Syarif Hidayatullah Jakarta tepat 1 lembar A4.")
-
-    with st.form("form_pernyataan"):
-        col_per1, col_per2 = st.columns(2)
-        with col_per1:
-            per_nama = st.text_input("Nama Lengkap Mahasiswa", value=st.session_state.get("s_nama", "") or st.session_state.get("p_nama", ""), placeholder="Contoh: Syarif Hidayatullah", key="per_nama")
-            per_nim = st.text_input("NIM", value=st.session_state.get("s_nim", "") or st.session_state.get("p_nim", ""), placeholder="Contoh: 11210220000073", key="per_nim")
-        with col_per2:
-            per_prodi = st.text_input("Program Studi", value="Sejarah Peradaban Islam", key="per_prodi")
-            per_tempat = st.text_input("Tempat Surat", value="Jakarta", key="per_tempat")
-
-        per_tgl = st.date_input("Tanggal Surat Pernyataan", value=datetime.date.today(), key="per_tgl")
-        per_materai = st.checkbox("Sediakan panduan teks Materai 10.000 (Opsional)", value=False, help="Centang bila ingin mencantumkan panduan posisi tempel materai 10.000 di atas tanda tangan", key="per_mat")
-
-        per_submitted = st.form_submit_button("🚀 Buat Lembar Pernyataan Skripsi (1 Lembar)", use_container_width=True)
-
-    if per_submitted:
-        if not per_nama.strip():
-            st.error("⚠️ Nama Lengkap wajib diisi!")
-        elif not per_nim.strip():
-            st.error("⚠️ NIM wajib diisi!")
-        else:
-            tpl_pernyataan = os.path.join(os.path.dirname(__file__), "template_pernyataan.docx")
-            if not os.path.exists(tpl_pernyataan):
-                st.error("❌ File template_pernyataan.docx tidak ditemukan di direktori aplikasi!")
-            else:
-                mat_text = "Materai 10.000" if per_materai else ""
-                payload_per = {
-                    "nama": per_nama.strip(),
-                    "nim": per_nim.strip(),
-                    "prodi": per_prodi.strip() or "Sejarah Peradaban Islam",
-                    "tempat": per_tempat.strip() or "Jakarta",
-                    "tanggal": format_tanggal_indo(per_tgl),
-                    "materai_placeholder": mat_text
-                }
-
-                with st.spinner("Sedang memproses Lembar Pernyataan Skripsi..."):
-                    docx_bytes_per = generate_pernyataan_document(tpl_pernyataan, payload_per)
-                    pdf_bytes_per = convert_docx_to_pdf(docx_bytes_per)
-                    clean_nim_per = "".join(c for c in per_nim if c.isalnum())
-                    st.session_state["per_doc"] = {
-                        "docx": docx_bytes_per,
-                        "pdf": pdf_bytes_per,
-                        "nim": clean_nim_per
-                    }
-
-    if "per_doc" in st.session_state:
-        per_data = st.session_state["per_doc"]
-        st.success("✅ Lembar Pernyataan Skripsi berhasil dibuat tepat 1 lembar A4!")
-        st.markdown("##### Pilih format unduhan:")
-        col_perdl1, col_perdl2 = st.columns(2)
-        with col_perdl1:
-            if per_data["pdf"]:
-                btn_per_pdf = st.download_button(
-                    label="📄 Unduh PDF (Pas 1 Lembar)",
-                    data=per_data["pdf"],
-                    file_name=f"Lembar_Pernyataan_Skripsi_{per_data['nim']}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    key="dl_pdf_per"
-                )
-                if btn_per_pdf:
-                    st.session_state["per_downloaded"] = True
-                    st.toast("🎉 Lembar Pernyataan PDF berhasil diunduh! Sukses untuk skripsinya ya! 🎓✨")
-                    st.balloons()
-            else:
-                st.warning("Konversi PDF tidak tersedia.")
-        with col_perdl2:
-            btn_per_docx = st.download_button(
-                label="📝 Unduh Word (.docx)",
-                data=per_data["docx"],
-                file_name=f"Lembar_Pernyataan_Skripsi_{per_data['nim']}.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                use_container_width=True,
-                key="dl_docx_per"
-            )
-            if btn_per_docx:
-                st.session_state["per_downloaded"] = True
-                st.toast("🎉 Lembar Pernyataan Word berhasil diunduh! Sukses untuk skripsinya ya! 🎓✨")
-                st.balloons()
-
-        render_saweria_box(st.session_state.get("per_downloaded", False))
-
-# ==========================================
-# TAB 7: SURAT PERNYATAAN IZIN PUBLIKASI REPOSITORY
-# ==========================================
-with tab7:
-    st.info("💡 Surat Pernyataan Izin Publikasi Karya Tulis Ilmiah (Skripsi) di Repository Perpustakaan UIN Syarif Hidayatullah Jakarta (ditandatangani di atas materai 10.000).")
-
-    with st.form("form_publikasi"):
-        col_pub1, col_pub2 = st.columns(2)
-        with col_pub1:
-            pub_nama = st.text_input("Nama Lengkap", value=st.session_state.get("s_nama", ""), placeholder="Contoh: Syarif Hidayatullah", key="pub_nama")
-            pub_telepon = st.text_input("No. Telepon / HP", placeholder="Contoh: 081234567890", key="pub_telp")
-        with col_pub2:
-            pub_nim = st.text_input("NIM", value=st.session_state.get("s_nim", ""), placeholder="Contoh: 11200210000088", key="pub_nim")
-            pub_jurusan = st.text_input("Jurusan / Program Studi", value="Sejarah dan Peradaban Islam", key="pub_jurusan")
-
-        pub_pembimbing = st.text_input("Dosen Pembimbing (Lengkap dengan Gelar)", placeholder="Contoh: Dr. Nama Pembimbing, M.Hum.", key="pub_pembimbing")
-        pub_judul = st.text_area("Judul Skripsi/Tesis (Latin)", value=st.session_state.get("p_judul", ""), placeholder="Tuliskan judul lengkap skripsi...", height=80, key="pub_judul")
-
-        st.markdown("##### Tempat & Tanggal Penandatanganan")
-        col_pt1, col_pt2 = st.columns(2)
-        with col_pt1:
-            pub_tempat = st.text_input("Tempat Surat", value="Jakarta", key="pub_tempat")
-        with col_pt2:
-            pub_tgl = st.date_input("Tanggal Surat", value=datetime.date.today(), key="pub_tgl")
-
-        pub_submitted = st.form_submit_button("🚀 Buat Surat Izin Publikasi (1 Lembar)", use_container_width=True)
-
-    if pub_submitted:
-        if not pub_nama.strip():
-            st.error("⚠️ Nama Lengkap wajib diisi!")
-        elif not pub_nim.strip():
-            st.error("⚠️ NIM wajib diisi!")
-        elif not pub_judul.strip():
-            st.error("⚠️ Judul Skripsi wajib diisi!")
-        else:
-            tpl_publikasi = os.path.join(os.path.dirname(__file__), "template_publikasi.docx")
-            if not os.path.exists(tpl_publikasi):
-                st.error("❌ File template_publikasi.docx tidak ditemukan di direktori aplikasi!")
-            else:
-                payload_pub = {
-                    "nama": pub_nama.strip(),
-                    "nim": pub_nim.strip(),
-                    "telepon": pub_telepon.strip() or "-",
-                    "jurusan": pub_jurusan.strip() or "Sejarah dan Peradaban Islam",
-                    "pembimbing": pub_pembimbing.strip() or "-",
-                    "judul": pub_judul.strip(),
-                    "tempat": pub_tempat.strip() or "Jakarta",
-                    "tanggal": format_tanggal_indo(pub_tgl)
-                }
-
-                with st.spinner("Sedang memproses Surat Pernyataan Izin Publikasi..."):
-                    docx_bytes_pub = generate_publikasi_document(tpl_publikasi, payload_pub)
-                    pdf_bytes_pub = convert_docx_to_pdf(docx_bytes_pub)
-                    clean_nim_pub = "".join(c for c in pub_nim if c.isalnum())
-                    st.session_state["pub_doc"] = {
-                        "docx": docx_bytes_pub,
-                        "pdf": pdf_bytes_pub,
-                        "nim": clean_nim_pub
-                    }
-
-    if "pub_doc" in st.session_state:
-        pub_data = st.session_state["pub_doc"]
-        st.success("✅ Surat Pernyataan Izin Publikasi berhasil dibuat tepat 1 lembar A4!")
-        st.markdown("##### Pilih format unduhan:")
-        col_pdl1, col_pdl2 = st.columns(2)
-        with col_pdl1:
-            if pub_data["pdf"]:
-                btn_pub_pdf = st.download_button(
-                    label="📄 Unduh PDF (Pas 1 Lembar)",
-                    data=pub_data["pdf"],
-                    file_name=f"Surat_Izin_Publikasi_{pub_data['nim']}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    key="dl_pdf_pub"
-                )
-                if btn_pub_pdf:
-                    st.session_state["pub_downloaded"] = True
-                    st.toast("🎉 Surat Izin Publikasi PDF berhasil diunduh! Sukses untuk skripsinya ya! 🎓✨")
-                    st.balloons()
-            else:
-                st.warning("Konversi PDF tidak tersedia.")
-        with col_pdl2:
-            btn_pub_docx = st.download_button(
-                label="📝 Unduh Word (.docx)",
-                data=pub_data["docx"],
-                file_name=f"Surat_Izin_Publikasi_{pub_data['nim']}.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                use_container_width=True,
-                key="dl_docx_pub"
-            )
-            if btn_pub_docx:
-                st.session_state["pub_downloaded"] = True
-                st.toast("🎉 Surat Izin Publikasi Word berhasil diunduh! Sukses untuk skripsinya ya! 🎓✨")
-                st.balloons()
-
-        render_saweria_box(st.session_state.get("pub_downloaded", False))
-
-# ==========================================
-# TAB 8: TEMPLATE EMAIL SIAP SALIN
-# ==========================================
-with tab8:
-    st.info("💡 Generator format email resmi ke Program Studi SPI FAH UIN Jakarta sesuai infografis resmi. Tinggal lengkapi identitas, salin dalam 1 klik, atau buka langsung di Gmail / aplikasi email!")
-
-    pilihan_skenario = st.radio(
-        "Pilih Jenis Permohonan Email:",
+    pilihan_pra = st.radio(
+        "Pilih Dokumen Pra-Sidang yang Ingin Dibuat:",
         [
-            "1️⃣ Permohonan Pendaftaran Ujian Proposal / Skripsi (Pra-Sidang)",
-            "2️⃣ Permohonan Berita Acara Sidang Skripsi (BAP & Transkrip Nilai)"
+            "📝 Formulir Permohonan Ujian Skripsi (TU)",
+            "📋 Formulir Pendaftaran Sidang (Map Kuning)",
+            "📖 Lembar Bimbingan Skripsi",
+            "✍️ Lembar Pernyataan Skripsi"
         ],
         horizontal=True
     )
+    st.markdown("---")
 
-    st.markdown("##### Lengkapi Data Pemohon:")
-    col_e1, col_e2 = st.columns(2)
-    with col_e1:
-        e_nama = st.text_input("Nama Lengkap", value=st.session_state.get("s_nama", ""), placeholder="Contoh: Syarif Hidayatullah", key="e_nama")
-        e_nim = st.text_input("NIM", value=st.session_state.get("s_nim", ""), placeholder="Contoh: 11200210000088", key="e_nim")
-    with col_e2:
-        e_prodi = st.text_input("Program Studi", value="Sejarah dan Peradaban Islam", key="e_prodi")
-        e_telepon = st.text_input("Nomor Telepon / WhatsApp", placeholder="Contoh: 081234567890", key="e_telp")
+    # Nilai default otomatis dari input sebelumnya
+    auto_nama = get_user_field(["u_nama", "s_nama", "b_nama", "per_nama", "p_nama", "pub_nama", "e_nama"])
+    auto_nim = get_user_field(["u_nim", "s_nim", "b_nim", "per_nim", "p_nim", "pub_nim", "e_nim"])
+    auto_prodi = get_user_field(["u_prodi", "s_prodi", "b_prodi", "per_prodi", "p_prodi", "pub_prodi", "e_prodi"], default="Sejarah dan Peradaban Islam")
+    auto_judul = get_user_field(["u_judul", "b_judul", "p_judul", "pub_judul", "e_judul"])
 
-    e_judul = st.text_area("Judul Proposal / Skripsi", value=st.session_state.get("p_judul", ""), placeholder="Tuliskan judul proposal / skripsi...", height=70, key="e_judul")
-
-    if "1️⃣" in pilihan_skenario:  # Permohonan Pendaftaran Ujian Proposal / Skripsi
-        e_pembimbing = st.text_input("Nama Dosen Pembimbing (Lengkap dengan Gelar)", placeholder="Contoh: Dr. Nama Pembimbing, M.Hum.", key="e_pembimbing")
+    # ----------------------------------------------------
+    # DOKUMEN 1 PRA: FORMULIR UJIAN SKRIPSI (TU)
+    # ----------------------------------------------------
+    if "Formulir Permohonan Ujian Skripsi" in pilihan_pra:
+        st.info("💡 Formulir permohonan ujian skripsi (munaqasyah) untuk diserahkan ke bagian Tata Usaha (TU) Fakultas.")
         
-        subject_text = f"Permohonan Pendaftaran Ujian Proposal/Skripsi - {e_nama or '[Nama]'} - {e_nim or '[NIM]'}"
-        pembimbing_str = e_pembimbing.strip() if e_pembimbing.strip() else "[Nama Dosen Pembimbing]"
+        with st.form("form_ujian"):
+            col_u1, col_u2 = st.columns(2)
+            with col_u1:
+                u_nama = st.text_input("Nama Lengkap", value=auto_nama, placeholder="Contoh: Syarif Hidayatullah", key="u_nama")
+                u_ttl = st.text_input("Tempat/Tanggal Lahir", placeholder="Contoh: Tangerang, 12 Agustus 2002", key="u_ttl")
+                u_alamat = st.text_area("Alamat Sekarang", placeholder="Contoh: Jl. Ciputat Raya No. 45, Tangerang Selatan", height=70, key="u_alamat")
+            with col_u2:
+                u_nim = st.text_input("NIM", value=auto_nim, placeholder="Contoh: 11200210000088", key="u_nim")
+                u_prodi = st.text_input("Program Studi", value=auto_prodi, key="u_prodi")
+                u_asal_slta = st.text_input("Asal SLTA / SMA", placeholder="Contoh: SMAN 1 Tangerang", key="u_slta")
+
+            col_u3, col_u4 = st.columns(2)
+            with col_u3:
+                u_ipk = st.text_input("IPK Sementara", placeholder="Contoh: 3.75", key="u_ipk")
+            with col_u4:
+                u_kontak = st.text_input("No. Telpon / Email", placeholder="Contoh: 08123456789 / nama@gmail.com", key="u_kontak")
+
+            u_judul = st.text_area("Judul Skripsi", value=auto_judul, placeholder="Tuliskan judul lengkap skripsi...", height=80, key="u_judul")
+
+            col_u5, col_u6 = st.columns(2)
+            with col_u5:
+                u_semester = st.selectbox("Semester Pengajuan Ujian", ["Ganjil", "Genap"], key="u_sem")
+            with col_u6:
+                current_year = datetime.date.today().year
+                default_ta = f"{current_year}/{current_year + 1}"
+                u_ta = st.text_input("Tahun Akademik", value=default_ta, placeholder="Contoh: 2025/2026", key="u_ta")
+
+            st.markdown("##### Tempat & Tanggal Dokumen")
+            col_ut1, col_ut2 = st.columns(2)
+            with col_ut1:
+                u_tempat = st.text_input("Tempat Surat", value="Jakarta", key="u_tempat")
+            with col_ut2:
+                u_tanggal = st.date_input("Tanggal Surat", value=datetime.date.today(), key="u_tgl")
+
+            u_submitted = st.form_submit_button("🚀 Buat Formulir Ujian Skripsi (1 Lembar)", use_container_width=True)
+
+        if u_submitted:
+            if not u_nama.strip():
+                st.error("⚠️ Nama Lengkap wajib diisi!")
+            elif not u_nim.strip():
+                st.error("⚠️ NIM wajib diisi!")
+            elif not u_judul.strip():
+                st.error("⚠️ Judul Skripsi wajib diisi!")
+            else:
+                tpl_ujian = os.path.join(os.path.dirname(__file__), "template_ujian.docx")
+                if not os.path.exists(tpl_ujian):
+                    st.error("❌ File template_ujian.docx tidak ditemukan di direktori aplikasi!")
+                else:
+                    payload_u = {
+                        "nama": u_nama.strip(),
+                        "nim": u_nim.strip(),
+                        "prodi": u_prodi.strip(),
+                        "ttl": u_ttl.strip() or "-",
+                        "asal_slta": u_asal_slta.strip() or "-",
+                        "alamat": u_alamat.strip() or "-",
+                        "ipk": u_ipk.strip() or "-",
+                        "judul": u_judul.strip(),
+                        "kontak": u_kontak.strip() or "-",
+                        "semester": u_semester,
+                        "tahun_akademik": u_ta.strip(),
+                        "tempat": u_tempat.strip() or "Jakarta",
+                        "tanggal": format_tanggal_indo(u_tanggal)
+                    }
+
+                    with st.spinner("Sedang memproses dokumen permohonan ujian..."):
+                        docx_bytes_u = generate_ujian_document(tpl_ujian, payload_u)
+                        pdf_bytes_u = convert_docx_to_pdf(docx_bytes_u)
+                        clean_nim_u = "".join(c for c in u_nim if c.isalnum())
+                        st.session_state["u_doc"] = {
+                            "docx": docx_bytes_u,
+                            "pdf": pdf_bytes_u,
+                            "nim": clean_nim_u
+                        }
+
+        if "u_doc" in st.session_state:
+            u_data = st.session_state["u_doc"]
+            st.success("✅ Formulir Pendaftaran Ujian Skripsi berhasil dibuat tepat 1 lembar A4!")
+            st.markdown("##### Pilih format unduhan:")
+            col_udl1, col_udl2 = st.columns(2)
+            with col_udl1:
+                if u_data["pdf"]:
+                    btn_u_pdf = st.download_button(
+                        label="📄 Unduh PDF (Pas 1 Lembar)",
+                        data=u_data["pdf"],
+                        file_name=f"Pendaftaran_Ujian_Skripsi_{u_data['nim']}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="dl_pdf_u"
+                    )
+                    if btn_u_pdf:
+                        st.session_state["u_downloaded"] = True
+                        st.toast("🎉 Formulir Ujian PDF berhasil diunduh! 🎓✨")
+                        st.balloons()
+                else:
+                    st.warning("Konversi PDF tidak tersedia.")
+            with col_udl2:
+                btn_u_docx = st.download_button(
+                    label="📝 Unduh Word (.docx)",
+                    data=u_data["docx"],
+                    file_name=f"Pendaftaran_Ujian_Skripsi_{u_data['nim']}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True,
+                    key="dl_docx_u"
+                )
+                if btn_u_docx:
+                    st.session_state["u_downloaded"] = True
+                    st.toast("🎉 Formulir Ujian Word berhasil diunduh! 🎓✨")
+                    st.balloons()
+
+            render_saweria_box(st.session_state.get("u_downloaded", False))
+
+    # ----------------------------------------------------
+    # DOKUMEN 2 PRA: FORMULIR PENDAFTARAN SIDANG (MAP KUNING)
+    # ----------------------------------------------------
+    elif "Formulir Pendaftaran Sidang" in pilihan_pra:
+        st.info("💡 Formulir pendaftaran sidang skripsi resmi ber-kop Fakultas Adab dan Humaniora beserta checklist 11 berkas map kuning.")
         
-        body_text = f"""Assalamualaikum wr.wb,
+        with st.form("form_sidang"):
+            col_s1, col_s2 = st.columns(2)
+            with col_s1:
+                s_nama = st.text_input("Nama Lengkap Mahasiswa", value=auto_nama, placeholder="Contoh: Syarif Hidayatullah", key="s_nama")
+                s_nim = st.text_input("NIM", value=auto_nim, placeholder="Contoh: 11200210000088", key="s_nim")
+            with col_s2:
+                s_prodi = st.text_input("Program Studi", value=auto_prodi, key="s_prodi")
+                s_tempat = st.text_input("Tempat Surat", value="Jakarta", key="s_tempat")
+
+            s_tgl_surat = st.date_input("Tanggal Surat", value=datetime.date.today(), key="s_tgl")
+
+            st.caption("ℹ️ Dokumen ini akan menampilkan kop surat resmi Fakultas Adab dan Humaniora, 11 daftar persyaratan ujian skripsi, dan tanda tangan resmi Kabag TU.")
+            s_submitted = st.form_submit_button("🚀 Buat Formulir Pendaftaran Sidang (1 Lembar)", use_container_width=True)
+
+        if s_submitted:
+            if not s_nama.strip():
+                st.error("⚠️ Nama Lengkap wajib diisi!")
+            elif not s_nim.strip():
+                st.error("⚠️ NIM wajib diisi!")
+            else:
+                tpl_sidang = os.path.join(os.path.dirname(__file__), "template_sidang.docx")
+                if not os.path.exists(tpl_sidang):
+                    st.error("❌ File template_sidang.docx tidak ditemukan di direktori aplikasi!")
+                else:
+                    payload_s = {
+                        "nama": s_nama.strip(),
+                        "nim": s_nim.strip(),
+                        "prodi": s_prodi.strip(),
+                        "tempat": s_tempat.strip() or "Jakarta",
+                        "tanggal": format_tanggal_indo(s_tgl_surat)
+                    }
+
+                    with st.spinner("Sedang memproses dokumen pendaftaran sidang..."):
+                        docx_bytes_s = generate_sidang_document(tpl_sidang, payload_s)
+                        pdf_bytes_s = convert_docx_to_pdf(docx_bytes_s)
+                        clean_nim_s = "".join(c for c in s_nim if c.isalnum())
+                        st.session_state["s_doc"] = {
+                            "docx": docx_bytes_s,
+                            "pdf": pdf_bytes_s,
+                            "nim": clean_nim_s
+                        }
+
+        if "s_doc" in st.session_state:
+            s_data = st.session_state["s_doc"]
+            st.success("✅ Formulir Pendaftaran Sidang berhasil dibuat tepat 1 lembar A4!")
+            st.markdown("##### Pilih format unduhan:")
+            col_sdl1, col_sdl2 = st.columns(2)
+            with col_sdl1:
+                if s_data["pdf"]:
+                    btn_s_pdf = st.download_button(
+                        label="📄 Unduh PDF (Pas 1 Lembar)",
+                        data=s_data["pdf"],
+                        file_name=f"Pendaftaran_Sidang_Skripsi_{s_data['nim']}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="dl_pdf_s"
+                    )
+                    if btn_s_pdf:
+                        st.session_state["s_downloaded"] = True
+                        st.toast("🎉 Formulir Sidang PDF berhasil diunduh! 🎓✨")
+                        st.balloons()
+                else:
+                    st.warning("Konversi PDF tidak tersedia.")
+            with col_sdl2:
+                btn_s_docx = st.download_button(
+                    label="📝 Unduh Word (.docx)",
+                    data=s_data["docx"],
+                    file_name=f"Pendaftaran_Sidang_Skripsi_{s_data['nim']}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True,
+                    key="dl_docx_s"
+                )
+                if btn_s_docx:
+                    st.session_state["s_downloaded"] = True
+                    st.toast("🎉 Formulir Sidang Word berhasil diunduh! 🎓✨")
+                    st.balloons()
+
+            render_saweria_box(st.session_state.get("s_downloaded", False))
+
+    # ----------------------------------------------------
+    # DOKUMEN 3 PRA: LEMBAR BIMBINGAN SKRIPSI
+    # ----------------------------------------------------
+    elif "Lembar Bimbingan Skripsi" in pilihan_pra:
+        st.info("💡 Lembar Catatan Bimbingan Skripsi resmi prodi dengan tabel log bimbingan 8 baris (minimal 6 kali bimbingan) lengkap dengan tanda tangan Ketua Program Studi dan Dosen Pembimbing.")
+
+        with st.form("form_bimbingan"):
+            col_b1, col_b2 = st.columns(2)
+            with col_b1:
+                b_nama = st.text_input("Nama Lengkap Mahasiswa", value=auto_nama, placeholder="Contoh: Syarif Hidayatullah", key="b_nama")
+                b_nim = st.text_input("NIM", value=auto_nim, placeholder="Contoh: 11210220000073", key="b_nim")
+            with col_b2:
+                b_prodi = st.text_input("Program Studi", value=auto_prodi, key="b_prodi")
+                b_tempat = st.text_input("Tempat Surat", value="Jakarta", key="b_tempat")
+
+            b_tgl = st.date_input("Tanggal Lembar Bimbingan", value=datetime.date.today(), key="b_tgl")
+            b_judul = st.text_area("Judul Skripsi", value=auto_judul, placeholder="Tuliskan judul lengkap skripsi...", height=80, key="b_judul")
+
+            st.markdown("##### Dosen Pembimbing Skripsi")
+            st.caption("Ketik angka nomornya saja. Sistem otomatis mendeteksi: **18 digit = NIP**, **10 digit = NIDN**.")
+            col_bp1, col_bp2 = st.columns(2)
+            with col_bp1:
+                b_pembimbing_nama = st.text_input("Nama & Gelar Dosen Pembimbing", placeholder="Contoh: Dr. Halimatus Sa'diyah, M.A.", key="b_pnama")
+            with col_bp2:
+                b_pembimbing_nip = st.text_input("Nomor NIP / NIDN Dosen Pembimbing", placeholder="Contoh: 198203152009012011", key="b_pnip")
+
+            with st.expander("⚙️ Data Ketua Program Studi (Default: Kaprodi SPI)"):
+                col_bk1, col_bk2 = st.columns(2)
+                with col_bk1:
+                    b_kaprodi_nama = st.text_input("Nama Kaprodi", value="Dr. Zakiya Darojat, M.A.", key="b_knama")
+                with col_bk2:
+                    b_kaprodi_nip = st.text_input("NIP/NIDN Kaprodi", value="197405302005012006", key="b_knip")
+
+            b_submitted = st.form_submit_button("🚀 Buat Lembar Bimbingan Skripsi (1 Lembar)", use_container_width=True)
+
+        if b_submitted:
+            if not b_nama.strip():
+                st.error("⚠️ Nama Lengkap wajib diisi!")
+            elif not b_nim.strip():
+                st.error("⚠️ NIM wajib diisi!")
+            elif not b_judul.strip():
+                st.error("⚠️ Judul Skripsi wajib diisi!")
+            else:
+                tpl_bimbingan = os.path.join(os.path.dirname(__file__), "template_bimbingan.docx")
+                if not os.path.exists(tpl_bimbingan):
+                    st.error("❌ File template_bimbingan.docx tidak ditemukan di direktori aplikasi!")
+                else:
+                    payload_b = {
+                        "nama": b_nama.strip(),
+                        "nim": b_nim.strip(),
+                        "prodi": b_prodi.strip() or "Sejarah dan Peradaban Islam",
+                        "judul": b_judul.strip(),
+                        "tempat": b_tempat.strip() or "Jakarta",
+                        "tanggal": format_tanggal_indo(b_tgl),
+                        "kaprodi_nama": b_kaprodi_nama.strip() or "Dr. Zakiya Darojat, M.A.",
+                        "kaprodi_nip": format_nip_nidn(b_kaprodi_nip.strip()) if b_kaprodi_nip.strip() else "NIP. 197405302005012006",
+                        "pembimbing_nama": b_pembimbing_nama.strip() or "Nama Dosen Pembimbing",
+                        "pembimbing_nip": format_nip_nidn(b_pembimbing_nip.strip()) if b_pembimbing_nip.strip() else "NIP/NIDN. "
+                    }
+
+                    with st.spinner("Sedang memproses Lembar Bimbingan Skripsi..."):
+                        docx_bytes_b = generate_bimbingan_document(tpl_bimbingan, payload_b)
+                        pdf_bytes_b = convert_docx_to_pdf(docx_bytes_b)
+                        clean_nim_b = "".join(c for c in b_nim if c.isalnum())
+                        st.session_state["b_doc"] = {
+                            "docx": docx_bytes_b,
+                            "pdf": pdf_bytes_b,
+                            "nim": clean_nim_b
+                        }
+
+        if "b_doc" in st.session_state:
+            b_data = st.session_state["b_doc"]
+            st.success("✅ Lembar Bimbingan Skripsi berhasil dibuat tepat 1 lembar A4!")
+            st.markdown("##### Pilih format unduhan:")
+            col_bdl1, col_bdl2 = st.columns(2)
+            with col_bdl1:
+                if b_data["pdf"]:
+                    btn_b_pdf = st.download_button(
+                        label="📄 Unduh PDF (Pas 1 Lembar)",
+                        data=b_data["pdf"],
+                        file_name=f"Lembar_Bimbingan_Skripsi_{b_data['nim']}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="dl_pdf_b"
+                    )
+                    if btn_b_pdf:
+                        st.session_state["b_downloaded"] = True
+                        st.toast("🎉 Lembar Bimbingan PDF berhasil diunduh! 🎓✨")
+                        st.balloons()
+                else:
+                    st.warning("Konversi PDF tidak tersedia.")
+            with col_bdl2:
+                btn_b_docx = st.download_button(
+                    label="📝 Unduh Word (.docx)",
+                    data=b_data["docx"],
+                    file_name=f"Lembar_Bimbingan_Skripsi_{b_data['nim']}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True,
+                    key="dl_docx_b"
+                )
+                if btn_b_docx:
+                    st.session_state["b_downloaded"] = True
+                    st.toast("🎉 Lembar Bimbingan Word berhasil diunduh! 🎓✨")
+                    st.balloons()
+
+            render_saweria_box(st.session_state.get("b_downloaded", False))
+
+    # ----------------------------------------------------
+    # DOKUMEN 4 PRA: LEMBAR PERNYATAAN SKRIPSI (BEBAS PLAGIASI)
+    # ----------------------------------------------------
+    elif "Lembar Pernyataan Skripsi" in pilihan_pra:
+        st.info("💡 Lembar Pernyataan Skripsi (Bebas Plagiasi & Orisinalitas Penelitian) sesuai format resmi akademik UIN Syarif Hidayatullah Jakarta tepat 1 lembar A4.")
+
+        with st.form("form_pernyataan"):
+            col_per1, col_per2 = st.columns(2)
+            with col_per1:
+                per_nama = st.text_input("Nama Lengkap Mahasiswa", value=auto_nama, placeholder="Contoh: Syarif Hidayatullah", key="per_nama")
+                per_nim = st.text_input("NIM", value=auto_nim, placeholder="Contoh: 11210220000073", key="per_nim")
+            with col_per2:
+                per_prodi = st.text_input("Program Studi", value=auto_prodi, key="per_prodi")
+                per_tempat = st.text_input("Tempat Surat", value="Jakarta", key="per_tempat")
+
+            per_tgl = st.date_input("Tanggal Surat Pernyataan", value=datetime.date.today(), key="per_tgl")
+            per_materai = st.checkbox("Sediakan panduan teks Materai 10.000 (Opsional)", value=False, help="Centang bila ingin mencantumkan panduan posisi tempel materai 10.000 di atas tanda tangan", key="per_mat")
+
+            per_submitted = st.form_submit_button("🚀 Buat Lembar Pernyataan Skripsi (1 Lembar)", use_container_width=True)
+
+        if per_submitted:
+            if not per_nama.strip():
+                st.error("⚠️ Nama Lengkap wajib diisi!")
+            elif not per_nim.strip():
+                st.error("⚠️ NIM wajib diisi!")
+            else:
+                tpl_pernyataan = os.path.join(os.path.dirname(__file__), "template_pernyataan.docx")
+                if not os.path.exists(tpl_pernyataan):
+                    st.error("❌ File template_pernyataan.docx tidak ditemukan di direktori aplikasi!")
+                else:
+                    mat_text = "Materai 10.000" if per_materai else ""
+                    payload_per = {
+                        "nama": per_nama.strip(),
+                        "nim": per_nim.strip(),
+                        "prodi": per_prodi.strip() or "Sejarah Peradaban Islam",
+                        "tempat": per_tempat.strip() or "Jakarta",
+                        "tanggal": format_tanggal_indo(per_tgl),
+                        "materai_placeholder": mat_text
+                    }
+
+                    with st.spinner("Sedang memproses Lembar Pernyataan Skripsi..."):
+                        docx_bytes_per = generate_pernyataan_document(tpl_pernyataan, payload_per)
+                        pdf_bytes_per = convert_docx_to_pdf(docx_bytes_per)
+                        clean_nim_per = "".join(c for c in per_nim if c.isalnum())
+                        st.session_state["per_doc"] = {
+                            "docx": docx_bytes_per,
+                            "pdf": pdf_bytes_per,
+                            "nim": clean_nim_per
+                        }
+
+        if "per_doc" in st.session_state:
+            per_data = st.session_state["per_doc"]
+            st.success("✅ Lembar Pernyataan Skripsi berhasil dibuat tepat 1 lembar A4!")
+            st.markdown("##### Pilih format unduhan:")
+            col_perdl1, col_perdl2 = st.columns(2)
+            with col_perdl1:
+                if per_data["pdf"]:
+                    btn_per_pdf = st.download_button(
+                        label="📄 Unduh PDF (Pas 1 Lembar)",
+                        data=per_data["pdf"],
+                        file_name=f"Lembar_Pernyataan_Skripsi_{per_data['nim']}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="dl_pdf_per"
+                    )
+                    if btn_per_pdf:
+                        st.session_state["per_downloaded"] = True
+                        st.toast("🎉 Lembar Pernyataan PDF berhasil diunduh! 🎓✨")
+                        st.balloons()
+                else:
+                    st.warning("Konversi PDF tidak tersedia.")
+            with col_perdl2:
+                btn_per_docx = st.download_button(
+                    label="📝 Unduh Word (.docx)",
+                    data=per_data["docx"],
+                    file_name=f"Lembar_Pernyataan_Skripsi_{per_data['nim']}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True,
+                    key="dl_docx_per"
+                )
+                if btn_per_docx:
+                    st.session_state["per_downloaded"] = True
+                    st.toast("🎉 Lembar Pernyataan Word berhasil diunduh! 🎓✨")
+                    st.balloons()
+
+            render_saweria_box(st.session_state.get("per_downloaded", False))
+
+# ==========================================
+# TAB 3: BERKAS KELULUSAN (PASCA-SIDANG)
+# ==========================================
+with tab3:
+    pilihan_pasca = st.radio(
+        "Pilih Layanan Pasca-Sidang / Kelulusan:",
+        [
+            "📄 Tanda Bukti Penyerahan Skripsi",
+            "🏛️ Surat Izin Publikasi Repository",
+            "✉️ Template Email Siap Salin"
+        ],
+        horizontal=True
+    )
+    st.markdown("---")
+
+    auto_nama_pasca = get_user_field(["p_nama", "pub_nama", "e_nama", "s_nama", "u_nama", "b_nama", "per_nama"])
+    auto_nim_pasca = get_user_field(["p_nim", "pub_nim", "e_nim", "s_nim", "u_nim", "b_nim", "per_nim"])
+    auto_prodi_pasca = get_user_field(["p_prodi", "pub_jurusan", "e_prodi", "s_prodi", "u_prodi", "b_prodi", "per_prodi"], default="Sejarah dan Peradaban Islam")
+    auto_judul_pasca = get_user_field(["p_judul", "pub_judul", "e_judul", "u_judul", "b_judul"])
+    auto_pembimbing_pasca = get_user_field(["p_pnama", "pub_pembimbing", "b_pnama", "e_pembimbing"])
+
+    # ----------------------------------------------------
+    # DOKUMEN 1 PASCA: TANDA BUKTI PENYERAHAN SKRIPSI
+    # ----------------------------------------------------
+    if "Tanda Bukti Penyerahan Skripsi" in pilihan_pasca:
+        st.info("💡 Formulir tanda bukti penyerahan skripsi pasca munaqasyah ke pihak Fakultas, Prodi, dan Perpustakaan.")
+        
+        with st.form("form_penyerahan"):
+            col1, col2 = st.columns(2)
+            with col1:
+                p_nama = st.text_input("Nama Lengkap Mahasiswa", value=auto_nama_pasca, placeholder="Contoh: Syarif Hidayatullah", key="p_nama")
+            with col2:
+                p_nim = st.text_input("NIM", value=auto_nim_pasca, placeholder="Contoh: 11200210000088", key="p_nim")
+
+            p_prodi = st.text_input("Program Studi", value=auto_prodi_pasca, key="p_prodi")
+            p_tgl_sidang = st.date_input("Tanggal Sidang Munaqasyah", value=datetime.date.today(), key="p_sidang")
+            p_judul = st.text_area("Judul Skripsi", value=auto_judul_pasca, placeholder="Tuliskan judul skripsi naskah final...", height=90, key="p_judul")
+
+            st.markdown("##### Tempat & Tanggal Penandatanganan Surat")
+            col_pt1, col_pt2 = st.columns(2)
+            with col_pt1:
+                p_tempat = st.text_input("Tempat Surat", value="Jakarta", key="p_tempat")
+            with col_pt2:
+                p_tgl_penyerahan = st.date_input("Tanggal Surat", value=datetime.date.today(), key="p_tgl")
+
+            with st.expander("🧑‍🏫 Data Dosen Pembimbing & Penguji (Opsional)"):
+                st.caption("Ketik angka nomornya saja. Sistem otomatis mendeteksi: **18 digit = NIP**, **10 digit = NIDN**.")
+                st.markdown("**Dosen Pembimbing Skripsi**")
+                col_pp1, col_pp2 = st.columns(2)
+                with col_pp1:
+                    p_pembimbing_nama = st.text_input("Nama & Gelar Pembimbing", value=auto_pembimbing_pasca, placeholder="Nama Pembimbing", key="p_pnama")
+                with col_pp2:
+                    p_pembimbing_nip = st.text_input("Nomor NIP / NIDN Pembimbing", placeholder="Nomor NIP/NIDN", key="p_pnip")
+
+                st.markdown("**Dosen Penguji 1**")
+                col_pu1, col_pu2 = st.columns(2)
+                with col_pu1:
+                    p_penguji1_nama = st.text_input("Nama & Gelar Penguji 1", placeholder="Nama Penguji 1", key="p_u1nama")
+                with col_pu2:
+                    p_penguji1_nip = st.text_input("Nomor NIP / NIDN Penguji 1", placeholder="Nomor NIP/NIDN", key="p_u1nip")
+
+                st.markdown("**Dosen Penguji 2**")
+                col_pu3, col_pu4 = st.columns(2)
+                with col_pu3:
+                    p_penguji2_nama = st.text_input("Nama & Gelar Penguji 2", placeholder="Nama Penguji 2", key="p_u2nama")
+                with col_pu4:
+                    p_penguji2_nip = st.text_input("Nomor NIP / NIDN Penguji 2", placeholder="Nomor NIP/NIDN", key="p_u2nip")
+
+            p_submitted = st.form_submit_button("🚀 Buat Dokumen Penyerahan (1 Lembar)", use_container_width=True)
+
+        if p_submitted:
+            if not p_nama.strip():
+                st.error("⚠️ Nama Lengkap wajib diisi!")
+            elif not p_nim.strip():
+                st.error("⚠️ NIM wajib diisi!")
+            elif not p_judul.strip():
+                st.error("⚠️ Judul Skripsi wajib diisi!")
+            else:
+                tpl_penyerahan = os.path.join(os.path.dirname(__file__), "template.docx")
+                if not os.path.exists(tpl_penyerahan):
+                    st.error("❌ File template.docx tidak ditemukan di direktori aplikasi!")
+                else:
+                    payload_p = {
+                        "nama": p_nama.strip(),
+                        "nim": p_nim.strip(),
+                        "prodi": p_prodi.strip(),
+                        "tanggal_sidang": format_tanggal_indo(p_tgl_sidang),
+                        "judul": p_judul.strip(),
+                        "tempat": p_tempat.strip() or "Jakarta",
+                        "tanggal_penyerahan": format_tanggal_indo(p_tgl_penyerahan),
+                        "pembimbing_nama": p_pembimbing_nama,
+                        "pembimbing_nip": p_pembimbing_nip,
+                        "penguji1_nama": p_penguji1_nama,
+                        "penguji1_nip": p_penguji1_nip,
+                        "penguji2_nama": p_penguji2_nama,
+                        "penguji2_nip": p_penguji2_nip,
+                    }
+
+                    with st.spinner("Sedang memproses dokumen tanda penyerahan skripsi..."):
+                        docx_bytes_p = generate_penyerahan_document(tpl_penyerahan, payload_p)
+                        pdf_bytes_p = convert_docx_to_pdf(docx_bytes_p)
+                        clean_nim_p = "".join(c for c in p_nim if c.isalnum())
+                        st.session_state["p_doc"] = {
+                            "docx": docx_bytes_p,
+                            "pdf": pdf_bytes_p,
+                            "nim": clean_nim_p
+                        }
+
+        if "p_doc" in st.session_state:
+            p_data = st.session_state["p_doc"]
+            st.success("✅ Dokumen berhasil dibuat tepat 1 lembar A4!")
+            st.markdown("##### Pilih format unduhan:")
+            col_p1, col_p2 = st.columns(2)
+            with col_p1:
+                if p_data["pdf"]:
+                    btn_p_pdf = st.download_button(
+                        label="📄 Unduh PDF (Pas 1 Lembar)",
+                        data=p_data["pdf"],
+                        file_name=f"Tanda_Bukti_Penyerahan_Skripsi_{p_data['nim']}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="dl_pdf_p"
+                    )
+                    if btn_p_pdf:
+                        st.session_state["p_downloaded"] = True
+                        st.toast("🎉 Berkas PDF berhasil diunduh! 🎓✨")
+                        st.balloons()
+                else:
+                    st.warning("Konversi PDF tidak tersedia.")
+            with col_p2:
+                btn_p_docx = st.download_button(
+                    label="📝 Unduh Word (.docx)",
+                    data=p_data["docx"],
+                    file_name=f"Tanda_Bukti_Penyerahan_Skripsi_{p_data['nim']}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True,
+                    key="dl_docx_p"
+                )
+                if btn_p_docx:
+                    st.session_state["p_downloaded"] = True
+                    st.toast("🎉 Berkas Word berhasil diunduh! 🎓✨")
+                    st.balloons()
+
+            render_saweria_box(st.session_state.get("p_downloaded", False))
+
+    # ----------------------------------------------------
+    # DOKUMEN 2 PASCA: SURAT PERNYATAAN IZIN PUBLIKASI
+    # ----------------------------------------------------
+    elif "Surat Izin Publikasi Repository" in pilihan_pasca:
+        st.info("💡 Surat Pernyataan Izin Publikasi Karya Tulis Ilmiah (Skripsi) di Repository Perpustakaan UIN Syarif Hidayatullah Jakarta (ditandatangani di atas materai 10.000).")
+
+        with st.form("form_publikasi"):
+            col_pub1, col_pub2 = st.columns(2)
+            with col_pub1:
+                pub_nama = st.text_input("Nama Lengkap", value=auto_nama_pasca, placeholder="Contoh: Syarif Hidayatullah", key="pub_nama")
+                pub_telepon = st.text_input("No. Telepon / HP", placeholder="Contoh: 081234567890", key="pub_telp")
+            with col_pub2:
+                pub_nim = st.text_input("NIM", value=auto_nim_pasca, placeholder="Contoh: 11200210000088", key="pub_nim")
+                pub_jurusan = st.text_input("Jurusan / Program Studi", value=auto_prodi_pasca, key="pub_jurusan")
+
+            pub_pembimbing = st.text_input("Dosen Pembimbing (Lengkap dengan Gelar)", value=auto_pembimbing_pasca, placeholder="Contoh: Dr. Nama Pembimbing, M.Hum.", key="pub_pembimbing")
+            pub_judul = st.text_area("Judul Skripsi/Tesis (Latin)", value=auto_judul_pasca, placeholder="Tuliskan judul lengkap skripsi...", height=80, key="pub_judul")
+
+            st.markdown("##### Tempat & Tanggal Penandatanganan")
+            col_pt1, col_pt2 = st.columns(2)
+            with col_pt1:
+                pub_tempat = st.text_input("Tempat Surat", value="Jakarta", key="pub_tempat")
+            with col_pt2:
+                pub_tgl = st.date_input("Tanggal Surat", value=datetime.date.today(), key="pub_tgl")
+
+            pub_submitted = st.form_submit_button("🚀 Buat Surat Izin Publikasi (1 Lembar)", use_container_width=True)
+
+        if pub_submitted:
+            if not pub_nama.strip():
+                st.error("⚠️ Nama Lengkap wajib diisi!")
+            elif not pub_nim.strip():
+                st.error("⚠️ NIM wajib diisi!")
+            elif not pub_judul.strip():
+                st.error("⚠️ Judul Skripsi wajib diisi!")
+            else:
+                tpl_publikasi = os.path.join(os.path.dirname(__file__), "template_publikasi.docx")
+                if not os.path.exists(tpl_publikasi):
+                    st.error("❌ File template_publikasi.docx tidak ditemukan di direktori aplikasi!")
+                else:
+                    payload_pub = {
+                        "nama": pub_nama.strip(),
+                        "nim": pub_nim.strip(),
+                        "telepon": pub_telepon.strip() or "-",
+                        "jurusan": pub_jurusan.strip() or "Sejarah dan Peradaban Islam",
+                        "pembimbing": pub_pembimbing.strip() or "-",
+                        "judul": pub_judul.strip(),
+                        "tempat": pub_tempat.strip() or "Jakarta",
+                        "tanggal": format_tanggal_indo(pub_tgl)
+                    }
+
+                    with st.spinner("Sedang memproses Surat Pernyataan Izin Publikasi..."):
+                        docx_bytes_pub = generate_publikasi_document(tpl_publikasi, payload_pub)
+                        pdf_bytes_pub = convert_docx_to_pdf(docx_bytes_pub)
+                        clean_nim_pub = "".join(c for c in pub_nim if c.isalnum())
+                        st.session_state["pub_doc"] = {
+                            "docx": docx_bytes_pub,
+                            "pdf": pdf_bytes_pub,
+                            "nim": clean_nim_pub
+                        }
+
+        if "pub_doc" in st.session_state:
+            pub_data = st.session_state["pub_doc"]
+            st.success("✅ Surat Pernyataan Izin Publikasi berhasil dibuat tepat 1 lembar A4!")
+            st.markdown("##### Pilih format unduhan:")
+            col_pdl1, col_pdl2 = st.columns(2)
+            with col_pdl1:
+                if pub_data["pdf"]:
+                    btn_pub_pdf = st.download_button(
+                        label="📄 Unduh PDF (Pas 1 Lembar)",
+                        data=pub_data["pdf"],
+                        file_name=f"Surat_Izin_Publikasi_{pub_data['nim']}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="dl_pdf_pub"
+                    )
+                    if btn_pub_pdf:
+                        st.session_state["pub_downloaded"] = True
+                        st.toast("🎉 Surat Izin Publikasi PDF berhasil diunduh! 🎓✨")
+                        st.balloons()
+                else:
+                    st.warning("Konversi PDF tidak tersedia.")
+            with col_pdl2:
+                btn_pub_docx = st.download_button(
+                    label="📝 Unduh Word (.docx)",
+                    data=pub_data["docx"],
+                    file_name=f"Surat_Izin_Publikasi_{pub_data['nim']}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True,
+                    key="dl_docx_pub"
+                )
+                if btn_pub_docx:
+                    st.session_state["pub_downloaded"] = True
+                    st.toast("🎉 Surat Izin Publikasi Word berhasil diunduh! 🎓✨")
+                    st.balloons()
+
+            render_saweria_box(st.session_state.get("pub_downloaded", False))
+
+    # ----------------------------------------------------
+    # DOKUMEN 3 PASCA: TEMPLATE EMAIL SIAP SALIN
+    # ----------------------------------------------------
+    elif "Template Email Siap Salin" in pilihan_pasca:
+        st.info("💡 Generator format email resmi ke Program Studi SPI FAH UIN Jakarta sesuai infografis resmi. Tinggal lengkapi identitas, salin dalam 1 klik, atau buka langsung di Gmail / aplikasi email!")
+
+        pilihan_skenario = st.radio(
+            "Pilih Jenis Permohonan Email:",
+            [
+                "1️⃣ Permohonan Pendaftaran Ujian Proposal / Skripsi (Pra-Sidang)",
+                "2️⃣ Permohonan Berita Acara Sidang Skripsi (BAP & Transkrip Nilai)"
+            ],
+            horizontal=True
+        )
+
+        st.markdown("##### Lengkapi Data Pemohon:")
+        col_e1, col_e2 = st.columns(2)
+        with col_e1:
+            e_nama = st.text_input("Nama Lengkap", value=auto_nama_pasca, placeholder="Contoh: Syarif Hidayatullah", key="e_nama")
+            e_nim = st.text_input("NIM", value=auto_nim_pasca, placeholder="Contoh: 11200210000088", key="e_nim")
+        with col_e2:
+            e_prodi = st.text_input("Program Studi", value=auto_prodi_pasca, key="e_prodi")
+            e_telepon = st.text_input("Nomor Telepon / WhatsApp", placeholder="Contoh: 081234567890", key="e_telp")
+
+        e_judul = st.text_area("Judul Proposal / Skripsi", value=auto_judul_pasca, placeholder="Tuliskan judul proposal / skripsi...", height=70, key="e_judul")
+
+        if "1️⃣" in pilihan_skenario:  # Permohonan Pendaftaran Ujian Proposal / Skripsi
+            e_pembimbing = st.text_input("Nama Dosen Pembimbing (Lengkap dengan Gelar)", value=auto_pembimbing_pasca, placeholder="Contoh: Dr. Nama Pembimbing, M.Hum.", key="e_pembimbing")
+            
+            subject_text = f"Permohonan Pendaftaran Ujian Proposal/Skripsi - {e_nama or '[Nama]'} - {e_nim or '[NIM]'}"
+            pembimbing_str = e_pembimbing.strip() if e_pembimbing.strip() else "[Nama Dosen Pembimbing]"
+            
+            body_text = f"""Assalamualaikum wr.wb,
 
 Dengan hormat,
 Saya yang bertanda tangan di bawah ini:
@@ -1163,10 +1102,10 @@ Atas perhatiannya kami ucapkan terima kasih.
 
 Wassalamualaikum wr.wb."""
 
-    else:  # Permohonan Berita Acara Sidang Skripsi (BAP)
-        subject_text = f"Permohonan Berita Acara Sidang Skripsi - {e_nama or '[Nama]'} - {e_nim or '[NIM]'}"
-        
-        body_text = f"""Assalamualaikum wr.wb,
+        else:  # Permohonan Berita Acara Sidang Skripsi (BAP)
+            subject_text = f"Permohonan Berita Acara Sidang Skripsi - {e_nama or '[Nama]'} - {e_nim or '[NIM]'}"
+            
+            body_text = f"""Assalamualaikum wr.wb,
 
 Dengan hormat,
 Saya yang bertanda tangan di bawah ini:
@@ -1184,34 +1123,34 @@ Atas perhatiannya kami ucapkan terima kasih.
 
 Wassalamualaikum wr.wb."""
 
-    st.markdown("---")
-    st.markdown("### 📤 Format Email Siap Kirim")
-    
-    email_tujuan = st.selectbox(
-        "Pilih Alamat Email Tujuan Prodi:",
-        [
-            "ski.fah@apps.uinjkt.ac.id (Email Resmi Apps UIN)",
-            "spi.fah.uinjakarta@gmail.com (Email Cadangan Prodi)",
-            "ski.fah@apps.uinjkt.ac.id, spi.fah.uinjakarta@gmail.com (Kirim ke Keduanya)"
-        ],
-        key="e_target"
-    )
-    clean_target = email_tujuan.split()[0] if "," not in email_tujuan else "ski.fah@apps.uinjkt.ac.id,spi.fah.uinjakarta@gmail.com"
+        st.markdown("---")
+        st.markdown("### 📤 Format Email Siap Kirim")
+        
+        email_tujuan = st.selectbox(
+            "Pilih Alamat Email Tujuan Prodi:",
+            [
+                "ski.fah@apps.uinjkt.ac.id (Email Resmi Apps UIN)",
+                "spi.fah.uinjakarta@gmail.com (Email Cadangan Prodi)",
+                "ski.fah@apps.uinjkt.ac.id, spi.fah.uinjakarta@gmail.com (Kirim ke Keduanya)"
+            ],
+            key="e_target"
+        )
+        clean_target = email_tujuan.split()[0] if "," not in email_tujuan else "ski.fah@apps.uinjkt.ac.id,spi.fah.uinjakarta@gmail.com"
 
-    st.markdown("**1. Subjek Email:**")
-    st.code(subject_text, language="text")
+        st.markdown("**1. Subjek Email:**")
+        st.code(subject_text, language="text")
 
-    st.markdown("**2. Isi Pesan Email (Body):** *(Klik tombol copy di pojok kanan atas kotak)*")
-    st.code(body_text, language="text")
+        st.markdown("**2. Isi Pesan Email (Body):** *(Klik tombol copy di pojok kanan atas kotak)*")
+        st.code(body_text, language="text")
 
-    # Tombol Buka di Gmail / Mail Client
-    mailto_url = f"mailto:{clean_target}?subject={urllib.parse.quote(subject_text)}&body={urllib.parse.quote(body_text)}"
-    gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={clean_target}&su={urllib.parse.quote(subject_text)}&body={urllib.parse.quote(body_text)}"
+        # Tombol Buka di Gmail / Mail Client
+        mailto_url = f"mailto:{clean_target}?subject={urllib.parse.quote(subject_text)}&body={urllib.parse.quote(body_text)}"
+        gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={clean_target}&su={urllib.parse.quote(subject_text)}&body={urllib.parse.quote(body_text)}"
 
-    col_mail1, col_mail2 = st.columns(2)
-    with col_mail1:
-        st.link_button("🚀 Buka Langsung di Gmail Web", gmail_url, use_container_width=True)
-    with col_mail2:
-        st.link_button("📧 Buka di Aplikasi Email (HP / Desktop)", mailto_url, use_container_width=True)
+        col_mail1, col_mail2 = st.columns(2)
+        with col_mail1:
+            st.link_button("🚀 Buka Langsung di Gmail Web", gmail_url, use_container_width=True)
+        with col_mail2:
+            st.link_button("📧 Buka di Aplikasi Email (HP / Desktop)", mailto_url, use_container_width=True)
 
-    render_saweria_box()
+        render_saweria_box()

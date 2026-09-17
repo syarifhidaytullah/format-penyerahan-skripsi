@@ -2,52 +2,34 @@
 
 Aplikasi web sederhana berbasis Python & Streamlit untuk mengotomatisasi pembuatan formulir resmi administrasi skripsi Program Studi Sejarah dan Peradaban Islam (SPI), Fakultas Adab dan Humaniora, UIN Syarif Hidayatullah Jakarta.
 
-## Fitur 8 Layanan Lengkap:
-1. **📌 Panduan & Checklist Persyaratan (Pra-Sidang & Pasca-Sidang)**
-   - Checklist interaktif 12 berkas persyaratan ujian skripsi map kuning.
-   - Alur persyaratan pengurusan BAP dan Transkrip Nilai (revisi ber-watermark, submit jurnal Socio Historica).
-   - Informasi alamat email resmi Program Studi SPI.
+## Struktur Navigasi Ramah HP (3 Tab Alur Akademik):
 
-2. **📄 Tanda Bukti Penyerahan Skripsi**
-   - Mengisi otomatis data Mahasiswa, NIM, Prodi, Tanggal Sidang, dan Judul Skripsi.
-   - Deteksi pintar format nomor Dosen: 18 digit = NIP (PNS/ASN), 10 digit = NIDN (Non-PNS).
-   - Padding 1 baris antara Judul dan Tabel dengan layout presisi 1 lembar A4.
-   - Pilihan unduh versi PDF (siap cetak) atau Word (.docx).
+Aplikasi didesain khusus agar nyaman dibuka di layar HP (smartphone) tanpa perlu menggeser deretan tab panjang. Semua kebutuhan dikelompokkan ke dalam **3 Tab Alur Utama**:
 
-3. **📝 Formulir Pendaftaran Ujian Skripsi**
-   - Mengisi otomatis data lengkap pendaftaran munaqasyah: Tempat/Tgl Lahir, Asal SLTA, Alamat, IPK, Judul, No HP/Email.
-   - Pilihan Semester (Ganjil/Genap) & Tahun Akademik.
-   - Blok tanda tangan pemohon terisi otomatis tanpa catatan bintang berlebih.
-   - Presisi 1 lembar A4 dalam format PDF dan Word (.docx).
+### 1. 📌 Tab 1: Panduan & Alur Berkas (Default View)
+- Checklist interaktif 12 berkas persyaratan ujian skripsi (map kuning).
+- Alur persyaratan pengurusan BAP dan Transkrip Nilai pasca-sidang.
+- Tautan langsung ke Jurnal *Socio Historica* UIN Jakarta dan alamat email resmi prodi SPI.
 
-4. **📋 Formulir Pendaftaran Sidang (Persyaratan Map Kuning)**
-   - Mengisi data Mahasiswa, NIM, Prodi, dan Tanggal Surat.
-   - Memuat lengkap 11 poin checklist berkas persyaratan ujian skripsi map kuning.
-   - Menampilkan kop surat resmi dan tanda tangan Kabag TU FAH UIN Jakarta.
-   - Presisi 1 lembar A4 dalam format PDF dan Word (.docx).
+### 2. 📝 Tab 2: Berkas Pendaftaran (Pra-Sidang)
+Tersedia sub-menu pilihan cepat untuk membuat dokumen persyaratan sidang:
+- **Formulir Permohonan Ujian Skripsi (TU):** Isian identitas, IPK, asal SLTA, semester/tahun akademik.
+- **Formulir Pendaftaran Sidang (Map Kuning):** Memuat 11 checklist berkas dan tanda tangan Kabag TU.
+- **Lembar Bimbingan Skripsi:** Memuat kop resmi FAH, tabel riwayat konsultasi 8 baris (min. 6 kali), dan tanda tangan berdampingan Kaprodi & Pembimbing.
+- **Lembar Pernyataan Skripsi:** Surat pernyataan bebas plagiasi & orisinalitas karya ilmiah 3 paragraf presisi 1 lembar A4 (dengan opsi panduan Materai 10.000).
 
-5. **📖 Lembar Bimbingan Skripsi**
-   - Menghasilkan Lembar Bimbingan Skripsi resmi prodi ber-kop resmi Fakultas Adab dan Humaniora.
-   - Memuat tabel riwayat bimbingan 8 baris terstruktur (syarat minimal 6 kali konsultasi pembimbing).
-   - Dilengkapi blok tanda tangan berdampingan: Ketua Program Studi (kiri) dan Dosen Pembimbing Skripsi (kanan).
-   - Presisi tepat 1 lembar A4 dalam format PDF dan Word (.docx).
+### 3. 🎓 Tab 3: Berkas Kelulusan (Pasca-Sidang)
+Tersedia sub-menu pilihan cepat untuk administrasi kelulusan:
+- **Tanda Bukti Penyerahan Skripsi:** Bukti serah terima naskah revisi ke dosen penguji, pembimbing, fakultas, dan perpus.
+- **Surat Pernyataan Izin Publikasi Repository:** Izin unggah karya ke perpustakaan UIN Jakarta bermaterai 10.000.
+- **Template Email Siap Salin:** Generator email resmi prodi (skenario pendaftaran sidang & permohonan BAP) + tombol langsung buka di Gmail / HP mail client.
 
-6. **✍️ Lembar Pernyataan Skripsi (Bebas Plagiasi)**
-   - Format baku surat pernyataan orisinalitas karya ilmiah dan bebas plagiarisme sesuai pedoman akademik UIN Jakarta.
-   - Memuat data Mahasiswa, NIM, Prodi, 3 butir pernyataan hukum/akademik, dan blok tanda tangan pemohon.
-   - Opsi panduan posisi tempel Materai 10.000 jika diwajibkan oleh fakultas/perpustakaan.
-   - Presisi tepat 1 lembar A4 dalam format PDF dan Word (.docx).
+---
 
-7. **🏛️ Surat Pernyataan Izin Publikasi Repository Perpustakaan**
-   - Surat resmi izin publikasi karya ilmiah di Repository Perpustakaan UIN Syarif Hidayatullah Jakarta.
-   - Dilengkapi kop resmi Fakultas Adab dan Humaniora dan ruang materai 10.000.
-   - Presisi tepat 1 lembar A4 dalam format PDF dan Word (.docx).
-
-8. **✉️ Template Email Siap Salin & Buka di Gmail**
-   - Generator otomatis format email resmi ke prodi sesuai template infografis resmi.
-   - Skenario 1: Permohonan Pendaftaran Ujian Proposal / Skripsi.
-   - Skenario 2: Permohonan Berita Acara Sidang Skripsi (BAP).
-   - Fitur salin 1-klik dan tombol langsung `Buka di Gmail` / `Aplikasi Email` dengan subjek dan isi yang sudah terisi otomatis.
+## Fitur Cerdas Lainnya:
+- **Sinkronisasi Data Otomatis:** Input Nama, NIM, Prodi, Judul, atau Nama Dosen di satu formulir akan otomatis mengisi formulir lainnya sehingga mahasiswa tidak perlu mengetik ulang berulang kali.
+- **Presisi 1 Lembar A4:** Semua dokumen dikalibrasi agar pas tepat 1 halaman A4 saat diunduh via PDF maupun Word (.docx).
+- **Deteksi Otomatis NIP vs NIDN:** 18 digit angka dikenali sebagai NIP (ASN), 10 digit angka dikenali sebagai NIDN.
 
 ## Menjalankan di Lokal:
 ```bash
