@@ -2,7 +2,7 @@
 
 Aplikasi web sederhana berbasis Python & Streamlit untuk mengotomatisasi pembuatan formulir resmi administrasi skripsi Program Studi Sejarah dan Peradaban Islam (SPI), Fakultas Adab dan Humaniora, UIN Syarif Hidayatullah Jakarta.
 
-## Fitur 3 Berkas Lengkap:
+## Fitur 5 Layanan Lengkap:
 1. **📄 Tanda Bukti Penyerahan Skripsi**
    - Mengisi otomatis data Mahasiswa, NIM, Prodi, Tanggal Sidang, dan Judul Skripsi.
    - Deteksi pintar format nomor Dosen: 18 digit = NIP (PNS/ASN), 10 digit = NIDN (Non-PNS).
@@ -20,6 +20,17 @@ Aplikasi web sederhana berbasis Python & Streamlit untuk mengotomatisasi pembuat
    - Memuat lengkap 11 poin checklist berkas persyaratan ujian skripsi map kuning.
    - Menampilkan kop surat resmi dan tanda tangan Kabag TU FAH UIN Jakarta.
    - Presisi 1 lembar A4 dalam format PDF dan Word (.docx).
+
+4. **📌 Panduan & Checklist Persyaratan (Pra-Sidang & Pasca-Sidang)**
+   - Checklist interaktif 12 berkas persyaratan ujian skripsi map kuning.
+   - Alur persyaratan pengurusan BAP dan Transkrip Nilai (revisi ber-watermark, submit jurnal Socio Historica).
+   - Informasi alamat email resmi Program Studi SPI.
+
+5. **✉️ Template Email Siap Salin & Buka di Gmail**
+   - Generator otomatis format email resmi ke prodi sesuai template infografis resmi.
+   - Skenario 1: Permohonan Pendaftaran Ujian Proposal / Skripsi.
+   - Skenario 2: Permohonan Berita Acara Sidang Skripsi (BAP).
+   - Fitur salin 1-klik dan tombol langsung `Buka di Gmail` / `Aplikasi Email` dengan subjek dan isi yang sudah terisi otomatis.
 
 ## Menjalankan di Lokal:
 ```bash

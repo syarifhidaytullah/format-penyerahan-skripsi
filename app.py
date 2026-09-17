@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import urllib.parse
 from docx import Document
 from docx.shared import Mm, Pt, RGBColor
 from docx.oxml import parse_xml
@@ -299,11 +300,13 @@ with st.sidebar:
         use_container_width=True
     )
 
-# Tab Pilihan Berkas (3 Formulir Lengkap)
-tab1, tab2, tab3 = st.tabs([
+# Tab Pilihan Berkas & Layanan (5 Tab Lengkap)
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📄 Tanda Bukti Penyerahan Skripsi",
     "📝 Formulir Pendaftaran Ujian Skripsi",
-    "📋 Formulir Pendaftaran Sidang (Persyaratan)"
+    "📋 Formulir Pendaftaran Sidang (Persyaratan)",
+    "📌 Panduan & Checklist Persyaratan",
+    "✉️ Template Email Siap Salin"
 ])
 
 # ==========================================
@@ -654,3 +657,172 @@ with tab3:
                 st.balloons()
 
         render_saweria_box(st.session_state.get("s_downloaded", False))
+
+# ==========================================
+# TAB 4: PANDUAN & CHECKLIST PERSYARATAN
+# ==========================================
+with tab4:
+    st.info("💡 Informasi resmi berkas persyaratan ujian skripsi dan pengurusan BAP berdasarkan panduan Program Studi Sejarah dan Peradaban Islam (SPI) FAH UIN Syarif Hidayatullah Jakarta.")
+    
+    # Bagian 1: Persyaratan Sidang Skripsi (Pra-Sidang)
+    st.markdown("### 📋 1. Persyaratan Sidang Skripsi (12 Berkas)")
+    st.caption("Semua berkas persyaratan ini dimasukkan ke dalam map kuning dan dikirimkan juga melalui email ke prodi.")
+    
+    col_chk1, col_chk2 = st.columns(2)
+    with col_chk1:
+        st.checkbox("1. Formulir Pendaftaran Sidang Skripsi (dibuat di Tab 2 / Tab 3)")
+        st.checkbox("2. Nilai IPK yang sudah dilegalisir")
+        st.checkbox("3. Rekapitulasi Pembayaran Semester yang dilegalisir")
+        st.checkbox("4. Lembar Pengesahan Skripsi (1 lembar)")
+        st.checkbox("5. Fotokopi Ijazah SMA/SLTA (1 lembar)")
+        st.checkbox("6. 1 Bundel Skripsi Lengkap (format Word / .docx)")
+    with col_chk2:
+        st.checkbox("7. Sertifikat Lulus TOAFL dan TOEFL")
+        st.checkbox("8. Lulus Praktik Ibadah dan Qiro'ah (sesuai KRS Semester 2)")
+        st.checkbox("9. Fotokopi Sertifikat Propesa / PBAK")
+        st.checkbox("10. Surat Pernyataan Skripsi")
+        st.checkbox("11. Surat Pernyataan Keaslian Berkas")
+        st.checkbox("12. Jurnal / Lembar Catatan Bimbingan Dosen")
+
+    st.markdown("---")
+
+    # Bagian 2: Persyaratan BAP dan Transkrip Nilai (Pasca-Sidang)
+    st.markdown("### 🎓 2. Persyaratan BAP & Transkrip Nilai (Pasca-Sidang)")
+    st.caption("Alur pengurusan Berita Acara Pemeriksaan (BAP) dan Transkrip Nilai setelah selesai ujian munaqasyah:")
+    
+    st.markdown("""
+    1. **Menyerahkan Hasil Revisi Skripsi:**
+       - Menyerahkan naskah revisi yang sudah sesuai dengan pedoman penulisan ke Dosen Penguji dan Dosen Pembimbing.
+       - Dibuktikan dengan **Lembar Tanda Bukti Penyerahan Skripsi** (dibuat di Tab 1).
+    2. **Menyerahkan Hasil Revisi Skripsi dalam Bentuk PDF:**
+       - Dokumen skripsi dalam bentuk PDF yang sudah disusun sesuai panduan penulisan (*dengan watermark resmi UIN*).
+    3. **Submit Artikel Jurnal Ilmiah:**
+       - Mengirimkan bukti pengiriman / submit skripsi yang diformat menjadi artikel jurnal ilmiah ke:
+         - Jurnal **Socio Historica** (Jurnal Ilmiah Prodi SPI): `https://journal.uinjkt.ac.id/index.php/sh`
+         - Atau ke jurnal ilmiah terakreditasi lainnya.
+    4. **Pengiriman Seluruh Berkas Bukti:**
+       - Seluruh bukti dikirimkan melalui email resmi program studi.
+    """)
+
+    col_btn_jurnal, col_btn_template = st.columns(2)
+    with col_btn_jurnal:
+        st.link_button(
+            "🔗 Buka Jurnal Socio Historica UIN Jakarta",
+            "https://journal.uinjkt.ac.id/index.php/sh",
+            use_container_width=True
+        )
+    with col_btn_template:
+        st.info("✉️ Format teks email resmi permohonan BAP bisa langsung disalin pada Tab 5.")
+
+    # Alamat Email Resmi Prodi
+    st.markdown("---")
+    st.markdown("### 📬 Alamat Email Resmi Program Studi SPI")
+    st.markdown("""
+    Pengiriman berkas persyaratan sidang maupun permohonan BAP ditujukan ke alamat email resmi prodi berikut:
+    - 📧 **`ski.fah@apps.uinjkt.ac.id`** (Akun Resmi Google Apps UIN)
+    - 📧 **`spi.fah.uinjakarta@gmail.com`** (Akun Cadangan Prodi SPI)
+    """)
+
+    render_saweria_box()
+
+# ==========================================
+# TAB 5: TEMPLATE EMAIL SIAP SALIN
+# ==========================================
+with tab5:
+    st.info("💡 Generator format email resmi ke Program Studi SPI FAH UIN Jakarta sesuai infografis resmi. Tinggal lengkapi identitas, salin dalam 1 klik, atau buka langsung di Gmail / aplikasi email!")
+
+    pilihan_skenario = st.radio(
+        "Pilih Jenis Permohonan Email:",
+        [
+            "1️⃣ Permohonan Pendaftaran Ujian Proposal / Skripsi (Pra-Sidang)",
+            "2️⃣ Permohonan Berita Acara Sidang Skripsi (BAP & Transkrip Nilai)"
+        ],
+        horizontal=True
+    )
+
+    st.markdown("##### Lengkapi Data Pemohon:")
+    col_e1, col_e2 = st.columns(2)
+    with col_e1:
+        e_nama = st.text_input("Nama Lengkap", value=st.session_state.get("s_nama", ""), placeholder="Contoh: Syarif Hidayatullah", key="e_nama")
+        e_nim = st.text_input("NIM", value=st.session_state.get("s_nim", ""), placeholder="Contoh: 11200210000088", key="e_nim")
+    with col_e2:
+        e_prodi = st.text_input("Program Studi", value="Sejarah dan Peradaban Islam", key="e_prodi")
+        e_telepon = st.text_input("Nomor Telepon / WhatsApp", placeholder="Contoh: 081234567890", key="e_telp")
+
+    e_judul = st.text_area("Judul Proposal / Skripsi", value=st.session_state.get("p_judul", ""), placeholder="Tuliskan judul proposal / skripsi...", height=70, key="e_judul")
+
+    if "1️⃣" in pilihan_skenario:  # Permohonan Pendaftaran Ujian Proposal / Skripsi
+        e_pembimbing = st.text_input("Nama Dosen Pembimbing (Lengkap dengan Gelar)", placeholder="Contoh: Dr. Nama Pembimbing, M.Hum.", key="e_pembimbing")
+        
+        subject_text = f"Permohonan Pendaftaran Ujian Proposal/Skripsi - {e_nama or '[Nama]'} - {e_nim or '[NIM]'}"
+        pembimbing_str = e_pembimbing.strip() if e_pembimbing.strip() else "[Nama Dosen Pembimbing]"
+        
+        body_text = f"""Assalamualaikum wr.wb,
+
+Dengan hormat,
+Saya yang bertanda tangan di bawah ini:
+Nama: {e_nama.strip() or '[Nama Lengkap]'}
+NIM: {e_nim.strip() or '[Nomor Induk Mahasiswa]'}
+Program Studi: {e_prodi.strip() or 'Sejarah dan Peradaban Islam'}
+Nomor Telepon: {e_telepon.strip() or '[Nomor Telepon]'}
+
+Dengan ini, mengajukan permohonan untuk mendaftar ujian proposal/skripsi. Proposal Skripsi saya berjudul “{e_judul.strip() or '[Judul Proposal/Skripsi]'}” telah selesai dan telah mendapatkan persetujuan dari {pembimbing_str} selaku dosen pembimbing.
+
+Bersama email ini turut saya melampirkan dokumen-dokumen yang menjadi persyaratan ujian.
+
+Atas perhatiannya kami ucapkan terima kasih.
+
+Wassalamualaikum wr.wb."""
+
+    else:  # Permohonan Berita Acara Sidang Skripsi (BAP)
+        subject_text = f"Permohonan Berita Acara Sidang Skripsi - {e_nama or '[Nama]'} - {e_nim or '[NIM]'}"
+        
+        body_text = f"""Assalamualaikum wr.wb,
+
+Dengan hormat,
+Saya yang bertanda tangan di bawah ini:
+Nama: {e_nama.strip() or '[Nama Lengkap]'}
+NIM: {e_nim.strip() or '[Nomor Induk Mahasiswa]'}
+Program Studi: {e_prodi.strip() or 'Sejarah dan Peradaban Islam'}
+Nomor Telepon: {e_telepon.strip() or '[Nomor Telepon]'}
+
+Dengan ini, mengajukan permohonan Berita Acara Sidang Skripsi. Bersama email ini turut saya melampirkan dokumen-dokumen yang menjadi persyaratan yaitu :
+1. Dokumen Skripsi dalam bentuk PDF yang sudah disusun sesuai panduan penulisan (dengan watermark)
+2. Lembar Penyerahan Skripsi
+3. Bukti Submit artikel Jurnal
+
+Atas perhatiannya kami ucapkan terima kasih.
+
+Wassalamualaikum wr.wb."""
+
+    st.markdown("---")
+    st.markdown("### 📤 Format Email Siap Kirim")
+    
+    email_tujuan = st.selectbox(
+        "Pilih Alamat Email Tujuan Prodi:",
+        [
+            "ski.fah@apps.uinjkt.ac.id (Email Resmi Apps UIN)",
+            "spi.fah.uinjakarta@gmail.com (Email Cadangan Prodi)",
+            "ski.fah@apps.uinjkt.ac.id, spi.fah.uinjakarta@gmail.com (Kirim ke Keduanya)"
+        ],
+        key="e_target"
+    )
+    clean_target = email_tujuan.split()[0] if "," not in email_tujuan else "ski.fah@apps.uinjkt.ac.id,spi.fah.uinjakarta@gmail.com"
+
+    st.markdown("**1. Subjek Email:**")
+    st.code(subject_text, language="text")
+
+    st.markdown("**2. Isi Pesan Email (Body):** *(Klik tombol copy di pojok kanan atas kotak)*")
+    st.code(body_text, language="text")
+
+    # Tombol Buka di Gmail / Mail Client
+    mailto_url = f"mailto:{clean_target}?subject={urllib.parse.quote(subject_text)}&body={urllib.parse.quote(body_text)}"
+    gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={clean_target}&su={urllib.parse.quote(subject_text)}&body={urllib.parse.quote(body_text)}"
+
+    col_mail1, col_mail2 = st.columns(2)
+    with col_mail1:
+        st.link_button("🚀 Buka Langsung di Gmail Web", gmail_url, use_container_width=True)
+    with col_mail2:
+        st.link_button("📧 Buka di Aplikasi Email (HP / Desktop)", mailto_url, use_container_width=True)
+
+    render_saweria_box()
