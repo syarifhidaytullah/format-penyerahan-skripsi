@@ -2,7 +2,7 @@
 
 Aplikasi web sederhana berbasis Python & Streamlit untuk mengotomatisasi pembuatan formulir resmi administrasi skripsi Program Studi Sejarah dan Peradaban Islam (SPI), Fakultas Adab dan Humaniora, UIN Syarif Hidayatullah Jakarta.
 
-## Fitur 6 Layanan Lengkap:
+## Fitur 8 Layanan Lengkap:
 1. **📌 Panduan & Checklist Persyaratan (Pra-Sidang & Pasca-Sidang)**
    - Checklist interaktif 12 berkas persyaratan ujian skripsi map kuning.
    - Alur persyaratan pengurusan BAP dan Transkrip Nilai (revisi ber-watermark, submit jurnal Socio Historica).
@@ -26,12 +26,24 @@ Aplikasi web sederhana berbasis Python & Streamlit untuk mengotomatisasi pembuat
    - Menampilkan kop surat resmi dan tanda tangan Kabag TU FAH UIN Jakarta.
    - Presisi 1 lembar A4 dalam format PDF dan Word (.docx).
 
-5. **🏛️ Surat Pernyataan Izin Publikasi Repository Perpustakaan**
+5. **📖 Lembar Bimbingan Skripsi**
+   - Menghasilkan Lembar Bimbingan Skripsi resmi prodi ber-kop resmi Fakultas Adab dan Humaniora.
+   - Memuat tabel riwayat bimbingan 8 baris terstruktur (syarat minimal 6 kali konsultasi pembimbing).
+   - Dilengkapi blok tanda tangan berdampingan: Ketua Program Studi (kiri) dan Dosen Pembimbing Skripsi (kanan).
+   - Presisi tepat 1 lembar A4 dalam format PDF dan Word (.docx).
+
+6. **✍️ Lembar Pernyataan Skripsi (Bebas Plagiasi)**
+   - Format baku surat pernyataan orisinalitas karya ilmiah dan bebas plagiarisme sesuai pedoman akademik UIN Jakarta.
+   - Memuat data Mahasiswa, NIM, Prodi, 3 butir pernyataan hukum/akademik, dan blok tanda tangan pemohon.
+   - Opsi panduan posisi tempel Materai 10.000 jika diwajibkan oleh fakultas/perpustakaan.
+   - Presisi tepat 1 lembar A4 dalam format PDF dan Word (.docx).
+
+7. **🏛️ Surat Pernyataan Izin Publikasi Repository Perpustakaan**
    - Surat resmi izin publikasi karya ilmiah di Repository Perpustakaan UIN Syarif Hidayatullah Jakarta.
    - Dilengkapi kop resmi Fakultas Adab dan Humaniora dan ruang materai 10.000.
    - Presisi tepat 1 lembar A4 dalam format PDF dan Word (.docx).
 
-6. **✉️ Template Email Siap Salin & Buka di Gmail**
+8. **✉️ Template Email Siap Salin & Buka di Gmail**
    - Generator otomatis format email resmi ke prodi sesuai template infografis resmi.
    - Skenario 1: Permohonan Pendaftaran Ujian Proposal / Skripsi.
    - Skenario 2: Permohonan Berita Acara Sidang Skripsi (BAP).
