@@ -331,18 +331,87 @@ with st.sidebar:
 
 # Tab Pilihan Berkas & Layanan (6 Tab Lengkap)
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "📌 Panduan & Checklist Persyaratan",
     "📄 Tanda Bukti Penyerahan Skripsi",
     "📝 Formulir Pendaftaran Ujian Skripsi",
     "📋 Formulir Pendaftaran Sidang (Persyaratan)",
     "🏛️ Surat Izin Publikasi Repository",
-    "📌 Panduan & Checklist Persyaratan",
     "✉️ Template Email Siap Salin"
 ])
 
 # ==========================================
-# TAB 1: FORM PENYERAHAN SKRIPSI
+# TAB 1: PANDUAN & CHECKLIST PERSYARATAN
 # ==========================================
 with tab1:
+    st.info("💡 Informasi resmi berkas persyaratan ujian skripsi dan pengurusan BAP berdasarkan panduan Program Studi Sejarah dan Peradaban Islam (SPI) FAH UIN Syarif Hidayatullah Jakarta.")
+    
+    # Bagian 1: Persyaratan Sidang Skripsi (Pra-Sidang)
+    st.markdown("### 📋 1. Persyaratan Sidang Skripsi (12 Berkas)")
+    st.caption("Semua berkas persyaratan ini dimasukkan ke dalam map kuning dan dikirimkan juga melalui email ke prodi.")
+    
+    col_chk1, col_chk2 = st.columns(2)
+    with col_chk1:
+        st.checkbox("1. Formulir Pendaftaran Sidang Skripsi (dibuat di Tab 3 / Tab 4)")
+        st.checkbox("2. Nilai IPK yang sudah dilegalisir")
+        st.checkbox("3. Rekapitulasi Pembayaran Semester yang dilegalisir")
+        st.checkbox("4. Lembar Pengesahan Skripsi (1 lembar)")
+        st.checkbox("5. Fotokopi Ijazah SMA/SLTA (1 lembar)")
+        st.checkbox("6. 1 Bundel Skripsi Lengkap (format Word / .docx)")
+    with col_chk2:
+        st.checkbox("7. Sertifikat Lulus TOAFL dan TOEFL")
+        st.checkbox("8. Lulus Praktik Ibadah dan Qiro'ah (sesuai KRS Semester 2)")
+        st.checkbox("9. Fotokopi Sertifikat Propesa / PBAK")
+        st.checkbox("10. Surat Pernyataan Skripsi")
+        st.checkbox("11. Surat Pernyataan Keaslian Berkas")
+        st.checkbox("12. Jurnal / Lembar Catatan Bimbingan Dosen")
+
+    st.markdown("---")
+
+    # Bagian 2: Persyaratan BAP dan Transkrip Nilai (Pasca-Sidang)
+    st.markdown("### 🎓 2. Persyaratan BAP & Transkrip Nilai (Pasca-Sidang)")
+    st.caption("Alur pengurusan Berita Acara Pemeriksaan (BAP) dan Transkrip Nilai setelah selesai ujian munaqasyah:")
+    
+    st.markdown("""
+    1. **Menyerahkan Hasil Revisi Skripsi:**
+       - Menyerahkan naskah revisi yang sudah sesuai dengan pedoman penulisan ke Dosen Penguji dan Dosen Pembimbing.
+       - Dibuktikan dengan **Lembar Tanda Bukti Penyerahan Skripsi** (dibuat di Tab 2).
+    2. **Menyerahkan Hasil Revisi Skripsi dalam Bentuk PDF:**
+       - Dokumen skripsi dalam bentuk PDF yang sudah disusun sesuai panduan penulisan (*dengan watermark resmi UIN*).
+    3. **Submit Artikel Jurnal Ilmiah:**
+       - Mengirimkan bukti pengiriman / submit skripsi yang diformat menjadi artikel jurnal ilmiah ke:
+         - Jurnal **Socio Historica** (Jurnal Ilmiah Prodi SPI): `https://journal.uinjkt.ac.id/index.php/sh`
+         - Atau ke jurnal ilmiah terakreditasi lainnya.
+    4. **Surat Pernyataan Izin Publikasi Repository:**
+       - Menandatangani Surat Pernyataan Izin Publikasi di Repository Perpustakaan UIN di atas materai 10.000 (bisa dibuat di Tab 5).
+    5. **Pengiriman Seluruh Berkas Bukti:**
+       - Seluruh bukti dikirimkan melalui email resmi program studi.
+    """)
+
+    col_btn_jurnal, col_btn_template = st.columns(2)
+    with col_btn_jurnal:
+        st.link_button(
+            "🔗 Buka Jurnal Socio Historica UIN Jakarta",
+            "https://journal.uinjkt.ac.id/index.php/sh",
+            use_container_width=True
+        )
+    with col_btn_template:
+        st.info("✉️ Format teks email resmi permohonan BAP bisa langsung disalin pada Tab 6.")
+
+    # Alamat Email Resmi Prodi
+    st.markdown("---")
+    st.markdown("### 📬 Alamat Email Resmi Program Studi SPI")
+    st.markdown("""
+    Pengiriman berkas persyaratan sidang maupun permohonan BAP ditujukan ke alamat email resmi prodi berikut:
+    - 📧 **`ski.fah@apps.uinjkt.ac.id`** (Akun Resmi Google Apps UIN)
+    - 📧 **`spi.fah.uinjakarta@gmail.com`** (Akun Cadangan Prodi SPI)
+    """)
+
+    render_saweria_box()
+
+# ==========================================
+# TAB 2: FORM PENYERAHAN SKRIPSI
+# ==========================================
+with tab2:
     st.info("💡 Formulir tanda bukti penyerahan skripsi pasca munaqasyah ke pihak Fakultas, Prodi, dan Perpustakaan.")
     
     with st.form("form_penyerahan"):
@@ -464,9 +533,9 @@ with tab1:
         render_saweria_box(st.session_state.get("p_downloaded", False))
 
 # ==========================================
-# TAB 2: FORM PENDAFTARAN UJIAN SKRIPSI
+# TAB 3: FORM PENDAFTARAN UJIAN SKRIPSI
 # ==========================================
-with tab2:
+with tab3:
     st.info("💡 Formulir permohonan pendaftaran ujian skripsi munaqasyah untuk diajukan ke Tata Usaha/Fakultas.")
     
     with st.form("form_ujian"):
@@ -600,9 +669,9 @@ with tab2:
         render_saweria_box(st.session_state.get("u_downloaded", False))
 
 # ==========================================
-# TAB 3: FORMULIR PENDAFTARAN SIDANG (PERSYARATAN MAP KUNING)
+# TAB 4: FORMULIR PENDAFTARAN SIDANG (PERSYARATAN MAP KUNING)
 # ==========================================
-with tab3:
+with tab4:
     st.info("💡 Formulir pendaftaran sidang skripsi yang memuat 11 berkas checklist persyaratan untuk dimasukkan ke dalam map kuning.")
     
     with st.form("form_sidang"):
@@ -689,9 +758,9 @@ with tab3:
         render_saweria_box(st.session_state.get("s_downloaded", False))
 
 # ==========================================
-# TAB 4: SURAT PERNYATAAN IZIN PUBLIKASI REPOSITORY
+# TAB 5: SURAT PERNYATAAN IZIN PUBLIKASI REPOSITORY
 # ==========================================
-with tab4:
+with tab5:
     st.info("💡 Surat Pernyataan Izin Publikasi Karya Tulis Ilmiah (Skripsi) di Repository Perpustakaan UIN Syarif Hidayatullah Jakarta (ditandatangani di atas materai 10.000).")
 
     with st.form("form_publikasi"):
@@ -784,75 +853,6 @@ with tab4:
                 st.balloons()
 
         render_saweria_box(st.session_state.get("pub_downloaded", False))
-
-# ==========================================
-# TAB 5: PANDUAN & CHECKLIST PERSYARATAN
-# ==========================================
-with tab5:
-    st.info("💡 Informasi resmi berkas persyaratan ujian skripsi dan pengurusan BAP berdasarkan panduan Program Studi Sejarah dan Peradaban Islam (SPI) FAH UIN Syarif Hidayatullah Jakarta.")
-    
-    # Bagian 1: Persyaratan Sidang Skripsi (Pra-Sidang)
-    st.markdown("### 📋 1. Persyaratan Sidang Skripsi (12 Berkas)")
-    st.caption("Semua berkas persyaratan ini dimasukkan ke dalam map kuning dan dikirimkan juga melalui email ke prodi.")
-    
-    col_chk1, col_chk2 = st.columns(2)
-    with col_chk1:
-        st.checkbox("1. Formulir Pendaftaran Sidang Skripsi (dibuat di Tab 2 / Tab 3)")
-        st.checkbox("2. Nilai IPK yang sudah dilegalisir")
-        st.checkbox("3. Rekapitulasi Pembayaran Semester yang dilegalisir")
-        st.checkbox("4. Lembar Pengesahan Skripsi (1 lembar)")
-        st.checkbox("5. Fotokopi Ijazah SMA/SLTA (1 lembar)")
-        st.checkbox("6. 1 Bundel Skripsi Lengkap (format Word / .docx)")
-    with col_chk2:
-        st.checkbox("7. Sertifikat Lulus TOAFL dan TOEFL")
-        st.checkbox("8. Lulus Praktik Ibadah dan Qiro'ah (sesuai KRS Semester 2)")
-        st.checkbox("9. Fotokopi Sertifikat Propesa / PBAK")
-        st.checkbox("10. Surat Pernyataan Skripsi")
-        st.checkbox("11. Surat Pernyataan Keaslian Berkas")
-        st.checkbox("12. Jurnal / Lembar Catatan Bimbingan Dosen")
-
-    st.markdown("---")
-
-    # Bagian 2: Persyaratan BAP dan Transkrip Nilai (Pasca-Sidang)
-    st.markdown("### 🎓 2. Persyaratan BAP & Transkrip Nilai (Pasca-Sidang)")
-    st.caption("Alur pengurusan Berita Acara Pemeriksaan (BAP) dan Transkrip Nilai setelah selesai ujian munaqasyah:")
-    
-    st.markdown("""
-    1. **Menyerahkan Hasil Revisi Skripsi:**
-       - Menyerahkan naskah revisi yang sudah sesuai dengan pedoman penulisan ke Dosen Penguji dan Dosen Pembimbing.
-       - Dibuktikan dengan **Lembar Tanda Bukti Penyerahan Skripsi** (dibuat di Tab 1).
-    2. **Menyerahkan Hasil Revisi Skripsi dalam Bentuk PDF:**
-       - Dokumen skripsi dalam bentuk PDF yang sudah disusun sesuai panduan penulisan (*dengan watermark resmi UIN*).
-    3. **Submit Artikel Jurnal Ilmiah:**
-       - Mengirimkan bukti pengiriman / submit skripsi yang diformat menjadi artikel jurnal ilmiah ke:
-         - Jurnal **Socio Historica** (Jurnal Ilmiah Prodi SPI): `https://journal.uinjkt.ac.id/index.php/sh`
-         - Atau ke jurnal ilmiah terakreditasi lainnya.
-    4. **Surat Pernyataan Izin Publikasi Repository:**
-       - Menandatangani Surat Pernyataan Izin Publikasi di Repository Perpustakaan UIN di atas materai 10.000 (bisa dibuat di Tab 4).
-    5. **Pengiriman Seluruh Berkas Bukti:**
-       - Seluruh bukti dikirimkan melalui email resmi program studi.
-    """)
-
-    col_btn_jurnal, col_btn_template = st.columns(2)
-    with col_btn_jurnal:
-        st.link_button(
-            "🔗 Buka Jurnal Socio Historica UIN Jakarta",
-            "https://journal.uinjkt.ac.id/index.php/sh",
-            use_container_width=True
-        )
-    with col_btn_template:
-        st.info("✉️ Format teks email resmi permohonan BAP bisa langsung disalin pada Tab 6.")
-
-    # Alamat Email Resmi Prodi
-    st.markdown("---")
-    st.markdown("### 📬 Alamat Email Resmi Program Studi SPI")
-    st.markdown("""
-    Pengiriman berkas persyaratan sidang maupun permohonan BAP ditujukan ke alamat email resmi prodi berikut:
-    - 📧 **`ski.fah@apps.uinjkt.ac.id`** (Akun Resmi Google Apps UIN)
-    - 📧 **`spi.fah.uinjakarta@gmail.com`** (Akun Cadangan Prodi SPI)
-    """)
-
-    render_saweria_box()
 
 # ==========================================
 # TAB 6: TEMPLATE EMAIL SIAP SALIN
