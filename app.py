@@ -283,6 +283,35 @@ def generate_sidang_document(template_path: str, data: dict) -> bytes:
     doc.save(output_stream)
     return output_stream.getvalue()
 
+# ==========================================
+# FUNGSI DOKUMEN 4: SURAT PERNYATAAN IZIN PUBLIKASI
+# ==========================================
+def generate_publikasi_document(template_path: str, data: dict) -> bytes:
+    doc = Document(template_path)
+    replacements = {
+        "{nama}": data["nama"],
+        "{nim}": data["nim"],
+        "{telepon}": data["telepon"],
+        "{jurusan}": data["jurusan"],
+        "{pembimbing}": data["pembimbing"],
+        "{judul}": data["judul"],
+        "{tempat}": data["tempat"],
+        "{tanggal}": data["tanggal"]
+    }
+
+    for t in doc.tables:
+        for row in t.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    for r in p.runs:
+                        for k, v in replacements.items():
+                            if k in r.text:
+                                r.text = r.text.replace(k, v)
+
+    output_stream = io.BytesIO()
+    doc.save(output_stream)
+    return output_stream.getvalue()
+
 # Header Utama Aplikasi
 st.title("🎓 Portal Layanan Berkas Skripsi")
 st.subheader("Program Studi Sejarah dan Peradaban Islam (SPI)")
@@ -300,11 +329,12 @@ with st.sidebar:
         use_container_width=True
     )
 
-# Tab Pilihan Berkas & Layanan (5 Tab Lengkap)
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+# Tab Pilihan Berkas & Layanan (6 Tab Lengkap)
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📄 Tanda Bukti Penyerahan Skripsi",
     "📝 Formulir Pendaftaran Ujian Skripsi",
     "📋 Formulir Pendaftaran Sidang (Persyaratan)",
+    "🏛️ Surat Izin Publikasi Repository",
     "📌 Panduan & Checklist Persyaratan",
     "✉️ Template Email Siap Salin"
 ])
@@ -659,9 +689,106 @@ with tab3:
         render_saweria_box(st.session_state.get("s_downloaded", False))
 
 # ==========================================
-# TAB 4: PANDUAN & CHECKLIST PERSYARATAN
+# TAB 4: SURAT PERNYATAAN IZIN PUBLIKASI REPOSITORY
 # ==========================================
 with tab4:
+    st.info("💡 Surat Pernyataan Izin Publikasi Karya Tulis Ilmiah (Skripsi) di Repository Perpustakaan UIN Syarif Hidayatullah Jakarta (ditandatangani di atas materai 10.000).")
+
+    with st.form("form_publikasi"):
+        col_pub1, col_pub2 = st.columns(2)
+        with col_pub1:
+            pub_nama = st.text_input("Nama Lengkap", value=st.session_state.get("s_nama", ""), placeholder="Contoh: Syarif Hidayatullah", key="pub_nama")
+            pub_telepon = st.text_input("No. Telepon / HP", placeholder="Contoh: 081234567890", key="pub_telp")
+        with col_pub2:
+            pub_nim = st.text_input("NIM", value=st.session_state.get("s_nim", ""), placeholder="Contoh: 11200210000088", key="pub_nim")
+            pub_jurusan = st.text_input("Jurusan / Program Studi", value="Sejarah dan Peradaban Islam", key="pub_jurusan")
+
+        pub_pembimbing = st.text_input("Dosen Pembimbing (Lengkap dengan Gelar)", placeholder="Contoh: Dr. Nama Pembimbing, M.Hum.", key="pub_pembimbing")
+        pub_judul = st.text_area("Judul Skripsi/Tesis (Latin)", value=st.session_state.get("p_judul", ""), placeholder="Tuliskan judul lengkap skripsi...", height=80, key="pub_judul")
+
+        st.markdown("##### Tempat & Tanggal Penandatanganan")
+        col_pt1, col_pt2 = st.columns(2)
+        with col_pt1:
+            pub_tempat = st.text_input("Tempat Surat", value="Jakarta", key="pub_tempat")
+        with col_pt2:
+            pub_tgl = st.date_input("Tanggal Surat", value=datetime.date.today(), key="pub_tgl")
+
+        pub_submitted = st.form_submit_button("🚀 Buat Surat Izin Publikasi (1 Lembar)", use_container_width=True)
+
+    if pub_submitted:
+        if not pub_nama.strip():
+            st.error("⚠️ Nama Lengkap wajib diisi!")
+        elif not pub_nim.strip():
+            st.error("⚠️ NIM wajib diisi!")
+        elif not pub_judul.strip():
+            st.error("⚠️ Judul Skripsi wajib diisi!")
+        else:
+            tpl_publikasi = os.path.join(os.path.dirname(__file__), "template_publikasi.docx")
+            if not os.path.exists(tpl_publikasi):
+                st.error("❌ File template_publikasi.docx tidak ditemukan di direktori aplikasi!")
+            else:
+                payload_pub = {
+                    "nama": pub_nama.strip(),
+                    "nim": pub_nim.strip(),
+                    "telepon": pub_telepon.strip() or "-",
+                    "jurusan": pub_jurusan.strip() or "Sejarah dan Peradaban Islam",
+                    "pembimbing": pub_pembimbing.strip() or "-",
+                    "judul": pub_judul.strip(),
+                    "tempat": pub_tempat.strip() or "Jakarta",
+                    "tanggal": format_tanggal_indo(pub_tgl)
+                }
+
+                with st.spinner("Sedang memproses Surat Pernyataan Izin Publikasi..."):
+                    docx_bytes_pub = generate_publikasi_document(tpl_publikasi, payload_pub)
+                    pdf_bytes_pub = convert_docx_to_pdf(docx_bytes_pub)
+                    clean_nim_pub = "".join(c for c in pub_nim if c.isalnum())
+                    st.session_state["pub_doc"] = {
+                        "docx": docx_bytes_pub,
+                        "pdf": pdf_bytes_pub,
+                        "nim": clean_nim_pub
+                    }
+
+    if "pub_doc" in st.session_state:
+        pub_data = st.session_state["pub_doc"]
+        st.success("✅ Surat Pernyataan Izin Publikasi berhasil dibuat tepat 1 lembar A4!")
+        st.markdown("##### Pilih format unduhan:")
+        col_pdl1, col_pdl2 = st.columns(2)
+        with col_pdl1:
+            if pub_data["pdf"]:
+                btn_pub_pdf = st.download_button(
+                    label="📄 Unduh PDF (Pas 1 Lembar)",
+                    data=pub_data["pdf"],
+                    file_name=f"Surat_Izin_Publikasi_{pub_data['nim']}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="dl_pdf_pub"
+                )
+                if btn_pub_pdf:
+                    st.session_state["pub_downloaded"] = True
+                    st.toast("🎉 Surat Izin Publikasi PDF berhasil diunduh! Sukses untuk skripsinya ya! 🎓✨")
+                    st.balloons()
+            else:
+                st.warning("Konversi PDF tidak tersedia.")
+        with col_pdl2:
+            btn_pub_docx = st.download_button(
+                label="📝 Unduh Word (.docx)",
+                data=pub_data["docx"],
+                file_name=f"Surat_Izin_Publikasi_{pub_data['nim']}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+                key="dl_docx_pub"
+            )
+            if btn_pub_docx:
+                st.session_state["pub_downloaded"] = True
+                st.toast("🎉 Surat Izin Publikasi Word berhasil diunduh! Sukses untuk skripsinya ya! 🎓✨")
+                st.balloons()
+
+        render_saweria_box(st.session_state.get("pub_downloaded", False))
+
+# ==========================================
+# TAB 5: PANDUAN & CHECKLIST PERSYARATAN
+# ==========================================
+with tab5:
     st.info("💡 Informasi resmi berkas persyaratan ujian skripsi dan pengurusan BAP berdasarkan panduan Program Studi Sejarah dan Peradaban Islam (SPI) FAH UIN Syarif Hidayatullah Jakarta.")
     
     # Bagian 1: Persyaratan Sidang Skripsi (Pra-Sidang)
@@ -700,7 +827,9 @@ with tab4:
        - Mengirimkan bukti pengiriman / submit skripsi yang diformat menjadi artikel jurnal ilmiah ke:
          - Jurnal **Socio Historica** (Jurnal Ilmiah Prodi SPI): `https://journal.uinjkt.ac.id/index.php/sh`
          - Atau ke jurnal ilmiah terakreditasi lainnya.
-    4. **Pengiriman Seluruh Berkas Bukti:**
+    4. **Surat Pernyataan Izin Publikasi Repository:**
+       - Menandatangani Surat Pernyataan Izin Publikasi di Repository Perpustakaan UIN di atas materai 10.000 (bisa dibuat di Tab 4).
+    5. **Pengiriman Seluruh Berkas Bukti:**
        - Seluruh bukti dikirimkan melalui email resmi program studi.
     """)
 
@@ -712,7 +841,7 @@ with tab4:
             use_container_width=True
         )
     with col_btn_template:
-        st.info("✉️ Format teks email resmi permohonan BAP bisa langsung disalin pada Tab 5.")
+        st.info("✉️ Format teks email resmi permohonan BAP bisa langsung disalin pada Tab 6.")
 
     # Alamat Email Resmi Prodi
     st.markdown("---")
@@ -726,9 +855,9 @@ with tab4:
     render_saweria_box()
 
 # ==========================================
-# TAB 5: TEMPLATE EMAIL SIAP SALIN
+# TAB 6: TEMPLATE EMAIL SIAP SALIN
 # ==========================================
-with tab5:
+with tab6:
     st.info("💡 Generator format email resmi ke Program Studi SPI FAH UIN Jakarta sesuai infografis resmi. Tinggal lengkapi identitas, salin dalam 1 klik, atau buka langsung di Gmail / aplikasi email!")
 
     pilihan_skenario = st.radio(
