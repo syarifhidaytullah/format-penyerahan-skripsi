@@ -70,6 +70,32 @@ def convert_docx_to_pdf(docx_bytes: bytes) -> bytes | None:
             return None
     return None
 
+def render_saweria_box(is_downloaded: bool = False):
+    st.markdown("---")
+    if is_downloaded:
+        st.success("🎉 **Berkas berhasil diunduh!** Semoga urusan administrasi dan munaqasyahnya lancar berkah! 🎓✨")
+    
+    st.markdown(
+        """
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin-top: 10px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <span style="font-size: 22px;">☕</span>
+                <span style="font-size: 16px; font-weight: 700; color: #1e293b;">Selesai unduh berkas? Traktir kopi yuk!</span>
+            </div>
+            <p style="margin: 0 0 12px 0; color: #475569; font-size: 13.5px; line-height: 1.5;">
+                Aplikasi ini dibuat gratis dan sukarela untuk mempermudah administrasi teman-teman mahasiswa SPI UIN Jakarta.<br>
+                Jika merasa terbantu dan dokumenmu rapi tepat 1 lembar tanpa repot edit manual, kamu bisa traktir kopi pengembang secara sukarela via <b>Saweria</b> (bisa scan QRIS GoPay, DANA, OVO, ShopeePay, dan Bank).
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.link_button(
+        label="💛 Traktir Kopi Pengembang via Saweria (https://saweria.co/syarifhiday)",
+        url="https://saweria.co/syarifhiday",
+        use_container_width=True
+    )
+
 # ==========================================
 # FUNGSI DOKUMEN 1: PENYERAHAN SKRIPSI
 # ==========================================
@@ -261,6 +287,18 @@ st.title("🎓 Portal Layanan Berkas Skripsi")
 st.subheader("Program Studi Sejarah dan Peradaban Islam (SPI)")
 st.caption("Fakultas Adab dan Humaniora — UIN Syarif Hidayatullah Jakarta")
 
+with st.sidebar:
+    st.markdown("### 🎓 Layanan Berkas SPI")
+    st.caption("Fakultas Adab dan Humaniora — UIN Syarif Hidayatullah Jakarta")
+    st.markdown("---")
+    st.markdown("### ☕ Dukung Pengembang")
+    st.caption("Aplikasi ini dibuat sukarela untuk mempermudah administrasi skripsi mahasiswa SPI tepat 1 lembar A4.")
+    st.link_button(
+        label="💛 Donasi via Saweria",
+        url="https://saweria.co/syarifhiday",
+        use_container_width=True
+    )
+
 # Tab Pilihan Berkas (3 Formulir Lengkap)
 tab1, tab2, tab3 = st.tabs([
     "📄 Tanda Bukti Penyerahan Skripsi",
@@ -349,29 +387,48 @@ with tab1:
                     docx_bytes_p = generate_penyerahan_document(tpl_penyerahan, payload_p)
                     pdf_bytes_p = convert_docx_to_pdf(docx_bytes_p)
                     clean_nim_p = "".join(c for c in p_nim if c.isalnum())
+                    st.session_state["p_doc"] = {
+                        "docx": docx_bytes_p,
+                        "pdf": pdf_bytes_p,
+                        "nim": clean_nim_p
+                    }
 
-                st.success("✅ Dokumen berhasil dibuat tepat 1 lembar A4!")
-                st.markdown("##### Pilih format unduhan:")
-                col_pdl1, col_pdl2 = st.columns(2)
-                with col_pdl1:
-                    if pdf_bytes_p:
-                        st.download_button(
-                            label="📄 Unduh PDF (Pas 1 Lembar)",
-                            data=pdf_bytes_p,
-                            file_name=f"Tanda_Bukti_Penyerahan_Skripsi_{clean_nim_p}.pdf",
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
-                    else:
-                        st.warning("Konversi PDF tidak tersedia.")
-                with col_pdl2:
-                    st.download_button(
-                        label="📝 Unduh Word (.docx)",
-                        data=docx_bytes_p,
-                        file_name=f"Tanda_Bukti_Penyerahan_Skripsi_{clean_nim_p}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        use_container_width=True
-                    )
+    if "p_doc" in st.session_state:
+        p_data = st.session_state["p_doc"]
+        st.success("✅ Dokumen berhasil dibuat tepat 1 lembar A4!")
+        st.markdown("##### Pilih format unduhan:")
+        col_pdl1, col_pdl2 = st.columns(2)
+        with col_pdl1:
+            if p_data["pdf"]:
+                btn_p_pdf = st.download_button(
+                    label="📄 Unduh PDF (Pas 1 Lembar)",
+                    data=p_data["pdf"],
+                    file_name=f"Tanda_Bukti_Penyerahan_Skripsi_{p_data['nim']}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="dl_pdf_p"
+                )
+                if btn_p_pdf:
+                    st.session_state["p_downloaded"] = True
+                    st.toast("🎉 Berkas PDF berhasil diunduh! Sukses untuk skripsinya ya! 🎓✨")
+                    st.balloons()
+            else:
+                st.warning("Konversi PDF tidak tersedia.")
+        with col_pdl2:
+            btn_p_docx = st.download_button(
+                label="📝 Unduh Word (.docx)",
+                data=p_data["docx"],
+                file_name=f"Tanda_Bukti_Penyerahan_Skripsi_{p_data['nim']}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+                key="dl_docx_p"
+            )
+            if btn_p_docx:
+                st.session_state["p_downloaded"] = True
+                st.toast("🎉 Berkas Word berhasil diunduh! Sukses untuk skripsinya ya! 🎓✨")
+                st.balloons()
+
+        render_saweria_box(st.session_state.get("p_downloaded", False))
 
 # ==========================================
 # TAB 2: FORM PENDAFTARAN UJIAN SKRIPSI
@@ -466,29 +523,48 @@ with tab2:
                     docx_bytes_u = generate_ujian_document(tpl_ujian, payload_u)
                     pdf_bytes_u = convert_docx_to_pdf(docx_bytes_u)
                     clean_nim_u = "".join(c for c in u_nim if c.isalnum())
+                    st.session_state["u_doc"] = {
+                        "docx": docx_bytes_u,
+                        "pdf": pdf_bytes_u,
+                        "nim": clean_nim_u
+                    }
 
-                st.success("✅ Formulir Pendaftaran Ujian berhasil dibuat tepat 1 lembar A4!")
-                st.markdown("##### Pilih format unduhan:")
-                col_udl1, col_udl2 = st.columns(2)
-                with col_udl1:
-                    if pdf_bytes_u:
-                        st.download_button(
-                            label="📄 Unduh PDF (Pas 1 Lembar)",
-                            data=pdf_bytes_u,
-                            file_name=f"Pendaftaran_Ujian_Skripsi_{clean_nim_u}.pdf",
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
-                    else:
-                        st.warning("Konversi PDF tidak tersedia.")
-                with col_udl2:
-                    st.download_button(
-                        label="📝 Unduh Word (.docx)",
-                        data=docx_bytes_u,
-                        file_name=f"Pendaftaran_Ujian_Skripsi_{clean_nim_u}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        use_container_width=True
-                    )
+    if "u_doc" in st.session_state:
+        u_data = st.session_state["u_doc"]
+        st.success("✅ Formulir Pendaftaran Ujian berhasil dibuat tepat 1 lembar A4!")
+        st.markdown("##### Pilih format unduhan:")
+        col_udl1, col_udl2 = st.columns(2)
+        with col_udl1:
+            if u_data["pdf"]:
+                btn_u_pdf = st.download_button(
+                    label="📄 Unduh PDF (Pas 1 Lembar)",
+                    data=u_data["pdf"],
+                    file_name=f"Pendaftaran_Ujian_Skripsi_{u_data['nim']}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="dl_pdf_u"
+                )
+                if btn_u_pdf:
+                    st.session_state["u_downloaded"] = True
+                    st.toast("🎉 Formulir Ujian PDF berhasil diunduh! Sukses munaqasyahnya! 🎓✨")
+                    st.balloons()
+            else:
+                st.warning("Konversi PDF tidak tersedia.")
+        with col_udl2:
+            btn_u_docx = st.download_button(
+                label="📝 Unduh Word (.docx)",
+                data=u_data["docx"],
+                file_name=f"Pendaftaran_Ujian_Skripsi_{u_data['nim']}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+                key="dl_docx_u"
+            )
+            if btn_u_docx:
+                st.session_state["u_downloaded"] = True
+                st.toast("🎉 Formulir Ujian Word berhasil diunduh! Sukses munaqasyahnya! 🎓✨")
+                st.balloons()
+
+        render_saweria_box(st.session_state.get("u_downloaded", False))
 
 # ==========================================
 # TAB 3: FORMULIR PENDAFTARAN SIDANG (PERSYARATAN MAP KUNING)
@@ -536,26 +612,45 @@ with tab3:
                     docx_bytes_s = generate_sidang_document(tpl_sidang, payload_s)
                     pdf_bytes_s = convert_docx_to_pdf(docx_bytes_s)
                     clean_nim_s = "".join(c for c in s_nim if c.isalnum())
+                    st.session_state["s_doc"] = {
+                        "docx": docx_bytes_s,
+                        "pdf": pdf_bytes_s,
+                        "nim": clean_nim_s
+                    }
 
-                st.success("✅ Formulir Pendaftaran Sidang berhasil dibuat tepat 1 lembar A4!")
-                st.markdown("##### Pilih format unduhan:")
-                col_sdl1, col_sdl2 = st.columns(2)
-                with col_sdl1:
-                    if pdf_bytes_s:
-                        st.download_button(
-                            label="📄 Unduh PDF (Pas 1 Lembar)",
-                            data=pdf_bytes_s,
-                            file_name=f"Pendaftaran_Sidang_Skripsi_{clean_nim_s}.pdf",
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
-                    else:
-                        st.warning("Konversi PDF tidak tersedia.")
-                with col_sdl2:
-                    st.download_button(
-                        label="📝 Unduh Word (.docx)",
-                        data=docx_bytes_s,
-                        file_name=f"Pendaftaran_Sidang_Skripsi_{clean_nim_s}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        use_container_width=True
-                    )
+    if "s_doc" in st.session_state:
+        s_data = st.session_state["s_doc"]
+        st.success("✅ Formulir Pendaftaran Sidang berhasil dibuat tepat 1 lembar A4!")
+        st.markdown("##### Pilih format unduhan:")
+        col_sdl1, col_sdl2 = st.columns(2)
+        with col_sdl1:
+            if s_data["pdf"]:
+                btn_s_pdf = st.download_button(
+                    label="📄 Unduh PDF (Pas 1 Lembar)",
+                    data=s_data["pdf"],
+                    file_name=f"Pendaftaran_Sidang_Skripsi_{s_data['nim']}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="dl_pdf_s"
+                )
+                if btn_s_pdf:
+                    st.session_state["s_downloaded"] = True
+                    st.toast("🎉 Formulir Sidang PDF berhasil diunduh! Sukses persyaratannya! 🎓✨")
+                    st.balloons()
+            else:
+                st.warning("Konversi PDF tidak tersedia.")
+        with col_sdl2:
+            btn_s_docx = st.download_button(
+                label="📝 Unduh Word (.docx)",
+                data=s_data["docx"],
+                file_name=f"Pendaftaran_Sidang_Skripsi_{s_data['nim']}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+                key="dl_docx_s"
+            )
+            if btn_s_docx:
+                st.session_state["s_downloaded"] = True
+                st.toast("🎉 Formulir Sidang Word berhasil diunduh! Sukses persyaratannya! 🎓✨")
+                st.balloons()
+
+        render_saweria_box(st.session_state.get("s_downloaded", False))
