@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import io
 import os
 import re
@@ -10,6 +11,8 @@ from docx import Document
 from docx.shared import Mm, Pt, RGBColor
 from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls
+import pymupdf
+from PIL import Image
 import streamlit as st
 
 # Konfigurasi Halaman
@@ -303,6 +306,135 @@ def generate_publikasi_document(template_path: str, data: dict) -> bytes:
     doc.save(output_stream)
     return output_stream.getvalue()
 
+# ==========================================
+# WATERMARK PDF FUNCTIONS
+# ==========================================
+def parse_page_selection(total_pages: int, mode: str, skip_str: str = "", include_str: str = "") -> set[int]:
+    """Mengembalikan set 0-indexed halaman yang AKAN di-watermark."""
+    all_pages = set(range(total_pages))
+    
+    if mode == "Semua Halaman":
+        return all_pages
+    elif mode == "Semua Kecuali Cover (Halaman 1)":
+        return {p for p in all_pages if p != 0}
+    
+    def parse_ranges(s: str) -> set[int]:
+        res = set()
+        if not s or not s.strip():
+            return res
+        parts = re.split(r"[,;]+", s.strip())
+        for p in parts:
+            p = p.strip()
+            if not p:
+                continue
+            if "-" in p:
+                sub = p.split("-")
+                try:
+                    start = int(sub[0].strip())
+                    end = int(sub[1].strip())
+                    for page_num in range(start, end + 1):
+                        if 1 <= page_num <= total_pages:
+                            res.add(page_num - 1)
+                except ValueError:
+                    continue
+            else:
+                try:
+                    page_num = int(p)
+                    if 1 <= page_num <= total_pages:
+                        res.add(page_num - 1)
+                except ValueError:
+                    continue
+        return res
+
+    if include_str.strip():
+        target = parse_ranges(include_str)
+    else:
+        target = all_pages
+
+    skip = parse_ranges(skip_str)
+    return target - skip
+
+
+def prepare_watermark_image(raw_bytes: bytes, opacity: float, remove_white_bg: bool = False) -> bytes:
+    """Mempersiapkan image watermark PNG dengan opacity dan pilihan hapus background putih."""
+    img = Image.open(io.BytesIO(raw_bytes)).convert("RGBA")
+    
+    if remove_white_bg:
+        datas = img.getdata()
+        new_data = []
+        for item in datas:
+            if item[0] > 235 and item[1] > 235 and item[2] > 235:
+                new_data.append((255, 255, 255, 0))
+            else:
+                new_data.append(item)
+        img.putdata(new_data)
+        
+    r, g, b, a = img.split()
+    a = a.point(lambda p: int(p * opacity))
+    img.putalpha(a)
+    
+    out = io.BytesIO()
+    img.save(out, format="PNG")
+    return out.getvalue()
+
+
+def apply_watermark_to_pdf(
+    pdf_bytes: bytes,
+    watermark_png_bytes: bytes,
+    pages_to_watermark: set[int],
+    scale: float = 0.45,
+    sample_only: int | None = None
+) -> tuple[bytes, list[bytes]]:
+    """
+    Menghasilkan PDF ber-watermark dan list bytes gambar PNG untuk sampel 5 halaman.
+    """
+    src_doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    total_pages = len(src_doc)
+    
+    pil_img = Image.open(io.BytesIO(watermark_png_bytes))
+    img_w, img_h = pil_img.size
+    aspect = img_h / img_w
+    
+    sample_images = []
+    
+    if sample_only is not None:
+        target_indices = list(range(min(sample_only, total_pages)))
+        out_doc = pymupdf.open()
+        for idx in target_indices:
+            out_doc.insert_pdf(src_doc, from_page=idx, to_page=idx)
+        proc_doc = out_doc
+    else:
+        target_indices = list(range(total_pages))
+        proc_doc = src_doc
+
+    for i, page in enumerate(proc_doc):
+        orig_page_idx = i if sample_only is None else target_indices[i]
+        
+        if orig_page_idx in pages_to_watermark:
+            rect = page.rect
+            target_w = rect.width * scale
+            target_h = target_w * aspect
+            
+            if target_h > rect.height * scale:
+                target_h = rect.height * scale
+                target_w = target_h / aspect
+                
+            x0 = (rect.width - target_w) / 2
+            y0 = (rect.height - target_h) / 2
+            x1 = x0 + target_w
+            y1 = y0 + target_h
+            
+            img_rect = pymupdf.Rect(x0, y0, x1, y1)
+            page.insert_image(img_rect, stream=watermark_png_bytes, overlay=False)
+            
+        if len(sample_images) < 5:
+            pix = page.get_pixmap(dpi=110)
+            sample_images.append(pix.tobytes("png"))
+
+    out_bytes = proc_doc.tobytes()
+    return out_bytes, sample_images
+
+
 # Header Utama Aplikasi
 st.title("🎓 Portal Layanan Berkas Skripsi")
 st.subheader("Program Studi Sejarah dan Peradaban Islam (SPI)")
@@ -321,10 +453,11 @@ with st.sidebar:
     )
 
 # 3 Tab Utama Berdasarkan Alur Mahasiswa (Sangat Responsif & Nyaman di HP)
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "📌 Panduan & Alur Berkas",
     "📝 Berkas Pendaftaran (Pra-Sidang)",
-    "🎓 Berkas Kelulusan (Pasca-Sidang)"
+    "🎓 Berkas Kelulusan (Pasca-Sidang)",
+    "💧 Watermark PDF Skripsi"
 ])
 
 # ==========================================
@@ -1154,3 +1287,334 @@ Wassalamualaikum wr.wb."""
             st.link_button("📧 Buka di Aplikasi Email (HP / Desktop)", mailto_url, use_container_width=True)
 
         render_saweria_box()
+
+# ==========================================
+# TAB 4: WATERMARK PDF SKRIPSI (BERBAYAR VIA LYNK.ID)
+# ==========================================
+# --- Konfigurasi Lynk.id ---
+# GANTI URL ini dengan URL produk Lynk.id kamu yang sesungguhnya
+LYNK_PRODUCT_URL = "https://lynk.id/syarifhidayatullah/s/watermark-skripsi"
+LYNK_ACCESS_SECRET = "SPI-LULUS-2026"  # Kode rahasia untuk validasi token algoritmik
+
+def generate_access_token(nim: str) -> str:
+    """Menghasilkan kode akses unik berdasarkan NIM + kunci rahasia."""
+    raw = f"{nim.strip()}-{LYNK_ACCESS_SECRET}"
+    h = hashlib.sha256(raw.encode()).hexdigest()[:8].upper()
+    return f"SPI-{h}"
+
+def validate_access_token(nim: str, token: str) -> bool:
+    """Memvalidasi apakah kode akses cocok untuk NIM tertentu."""
+    expected = generate_access_token(nim)
+    return token.strip().upper() == expected
+
+with tab4:
+    st.markdown(
+        """
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px 24px; border-radius: 12px; margin-bottom: 16px;">
+            <h3 style="color: white; margin: 0 0 6px 0;">💧 Watermark PDF Skripsi Otomatis</h3>
+            <p style="color: rgba(255,255,255,0.9); margin: 0; font-size: 14px;">
+                Upload gambar watermark & PDF skripsi kamu, atur halaman mana yang perlu di-watermark, lalu unduh hasilnya.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.info("💡 **Cara Pakai:** Upload gambar watermark (logo/cap) dan PDF skripsi → Atur halaman → Lihat pratinjau 5 halaman gratis → Beli kode akses via Lynk.id → Unduh PDF lengkap ber-watermark.")
+
+    # --- STEP 1: Upload Gambar Watermark ---
+    st.markdown("### 🖼️ 1. Upload Gambar Watermark")
+    st.caption("Format yang didukung: PNG, JPG, JPEG, WEBP. Gunakan gambar dengan latar transparan (PNG) untuk hasil terbaik.")
+    wm_file = st.file_uploader(
+        "Pilih file gambar watermark",
+        type=["png", "jpg", "jpeg", "webp"],
+        key="wm_upload",
+        help="Upload logo UIN, logo fakultas, atau gambar kustom lainnya yang ingin dijadikan watermark."
+    )
+
+    if wm_file:
+        wm_raw_bytes = wm_file.read()
+        st.session_state["wm_raw"] = wm_raw_bytes
+
+        col_wm_prev, col_wm_settings = st.columns([1, 2])
+        with col_wm_prev:
+            st.image(wm_raw_bytes, caption="Pratinjau gambar watermark", use_container_width=True)
+        with col_wm_settings:
+            wm_opacity = st.slider(
+                "Tingkat Transparansi Watermark",
+                min_value=5, max_value=50, value=15, step=5,
+                format="%d%%",
+                help="Semakin rendah nilainya, semakin transparan watermark-nya. Rekomendasi: 10-20%.",
+                key="wm_opacity"
+            )
+            wm_scale = st.slider(
+                "Ukuran Watermark (% dari halaman)",
+                min_value=20, max_value=80, value=45, step=5,
+                format="%d%%",
+                help="Persentase lebar halaman yang akan ditempati watermark. Rekomendasi: 40-55%.",
+                key="wm_scale"
+            )
+            wm_remove_bg = st.checkbox(
+                "Hapus background putih dari gambar secara otomatis",
+                value=False,
+                help="Centang jika gambar watermark kamu berlatar putih (bukan transparan). Sistem akan menghapus background putihnya.",
+                key="wm_rmbg"
+            )
+    elif "wm_raw" in st.session_state:
+        wm_raw_bytes = st.session_state["wm_raw"]
+        col_wm_prev, col_wm_settings = st.columns([1, 2])
+        with col_wm_prev:
+            st.image(wm_raw_bytes, caption="Pratinjau gambar watermark", use_container_width=True)
+        with col_wm_settings:
+            wm_opacity = st.slider(
+                "Tingkat Transparansi Watermark",
+                min_value=5, max_value=50, value=15, step=5,
+                format="%d%%",
+                help="Semakin rendah nilainya, semakin transparan watermark-nya. Rekomendasi: 10-20%.",
+                key="wm_opacity"
+            )
+            wm_scale = st.slider(
+                "Ukuran Watermark (% dari halaman)",
+                min_value=20, max_value=80, value=45, step=5,
+                format="%d%%",
+                help="Persentase lebar halaman yang akan ditempati watermark. Rekomendasi: 40-55%.",
+                key="wm_scale"
+            )
+            wm_remove_bg = st.checkbox(
+                "Hapus background putih dari gambar secara otomatis",
+                value=False,
+                help="Centang jika gambar watermark kamu berlatar putih (bukan transparan). Sistem akan menghapus background putihnya.",
+                key="wm_rmbg"
+            )
+    else:
+        wm_raw_bytes = None
+
+    st.markdown("---")
+
+    # --- STEP 2: Upload PDF Skripsi ---
+    st.markdown("### 📄 2. Upload PDF Skripsi")
+    pdf_file = st.file_uploader(
+        "Pilih file PDF skripsi yang akan di-watermark",
+        type=["pdf"],
+        key="wm_pdf_upload",
+        help="Upload naskah skripsi dalam format PDF. Maksimal 200 MB."
+    )
+
+    if pdf_file:
+        pdf_raw_bytes = pdf_file.read()
+        st.session_state["wm_pdf_raw"] = pdf_raw_bytes
+
+        try:
+            tmp_doc = pymupdf.open(stream=pdf_raw_bytes, filetype="pdf")
+            total_pages = len(tmp_doc)
+            tmp_doc.close()
+            st.session_state["wm_total_pages"] = total_pages
+            st.success(f"✅ PDF berhasil dimuat: **{total_pages} halaman** ({len(pdf_raw_bytes) / 1024 / 1024:.1f} MB)")
+        except Exception as e:
+            st.error(f"❌ Gagal membaca file PDF: {e}")
+            total_pages = 0
+    elif "wm_pdf_raw" in st.session_state:
+        pdf_raw_bytes = st.session_state["wm_pdf_raw"]
+        total_pages = st.session_state.get("wm_total_pages", 0)
+        if total_pages > 0:
+            st.success(f"✅ PDF dimuat: **{total_pages} halaman** ({len(pdf_raw_bytes) / 1024 / 1024:.1f} MB)")
+    else:
+        pdf_raw_bytes = None
+        total_pages = 0
+
+    # --- STEP 3: Pengaturan Halaman ---
+    if total_pages > 0 and wm_raw_bytes:
+        st.markdown("---")
+        st.markdown("### ⚙️ 3. Pengaturan Halaman yang Di-watermark")
+
+        page_mode = st.radio(
+            "Pilih mode halaman:",
+            ["Semua Halaman", "Semua Kecuali Cover (Halaman 1)", "Kustom (Pilih Sendiri)"],
+            horizontal=True,
+            key="wm_page_mode"
+        )
+
+        skip_str = ""
+        include_str = ""
+        if page_mode == "Kustom (Pilih Sendiri)":
+            col_inc, col_skip = st.columns(2)
+            with col_inc:
+                include_str = st.text_input(
+                    f"Halaman yang DI-watermark (1-{total_pages})",
+                    placeholder="Contoh: 1-5, 10, 15-20",
+                    help="Kosongkan untuk memilih semua halaman, lalu gunakan kolom 'lewati' untuk mengecualikan.",
+                    key="wm_include"
+                )
+            with col_skip:
+                skip_str = st.text_input(
+                    "Halaman yang DILEWATI (tidak di-watermark)",
+                    placeholder="Contoh: 1, 2, 100",
+                    help="Halaman-halaman ini tidak akan diberi watermark.",
+                    key="wm_skip"
+                )
+
+        clean_mode = page_mode.split(" (")[0] if "(" in page_mode else page_mode
+        selected_pages = parse_page_selection(total_pages, clean_mode, skip_str, include_str)
+        wm_count = len(selected_pages)
+        skip_count = total_pages - wm_count
+
+        st.markdown(
+            f"""
+            <div style="background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 12px 16px; margin: 8px 0;">
+                <span style="font-size: 14px;">
+                    📊 <b>{wm_count}</b> halaman akan di-watermark &nbsp;|&nbsp;
+                    ⏭️ <b>{skip_count}</b> halaman dilewati &nbsp;|&nbsp;
+                    📑 Total: <b>{total_pages}</b> halaman
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.markdown("---")
+
+        # --- STEP 4: Generate Pratinjau Gratis (5 Halaman) ---
+        st.markdown("### 👁️ 4. Pratinjau Gratis (5 Halaman Pertama)")
+
+        if st.button("🔍 Lihat Pratinjau 5 Halaman", use_container_width=True, key="wm_preview_btn"):
+            with st.spinner("Sedang memproses pratinjau watermark..."):
+                try:
+                    prep_wm = prepare_watermark_image(
+                        wm_raw_bytes,
+                        opacity=st.session_state.get("wm_opacity", 15) / 100,
+                        remove_white_bg=st.session_state.get("wm_rmbg", False)
+                    )
+                    _, sample_imgs = apply_watermark_to_pdf(
+                        pdf_raw_bytes,
+                        prep_wm,
+                        selected_pages,
+                        scale=st.session_state.get("wm_scale", 45) / 100,
+                        sample_only=5
+                    )
+                    st.session_state["wm_samples"] = sample_imgs
+                except Exception as e:
+                    st.error(f"❌ Gagal memproses pratinjau: {e}")
+
+        if "wm_samples" in st.session_state and st.session_state["wm_samples"]:
+            samples = st.session_state["wm_samples"]
+            st.caption(f"Menampilkan {len(samples)} halaman pertama sebagai pratinjau:")
+
+            # Tampilkan 2-3 kolom per baris
+            cols_per_row = 3 if len(samples) >= 3 else len(samples)
+            for row_start in range(0, len(samples), cols_per_row):
+                row_imgs = samples[row_start:row_start + cols_per_row]
+                cols = st.columns(len(row_imgs))
+                for col_idx, img_bytes in enumerate(row_imgs):
+                    with cols[col_idx]:
+                        page_num = row_start + col_idx + 1
+                        is_watermarked = (page_num - 1) in selected_pages
+                        label = f"Hal. {page_num}" + (" 💧" if is_watermarked else " ⏭️")
+                        st.image(img_bytes, caption=label, use_container_width=True)
+
+            st.markdown("---")
+
+        # --- STEP 5: Akses Berbayar via Lynk.id ---
+        st.markdown("### 🔐 5. Unduh PDF Lengkap Ber-watermark")
+
+        # Cek apakah sudah unlock via query param (redirect dari Lynk.id)
+        params = st.query_params
+        if params.get("wm_akses") == "sukses":
+            st.session_state["wm_unlocked"] = True
+
+        if st.session_state.get("wm_unlocked", False):
+            # SUDAH UNLOCK — Tombol proses & download penuh
+            st.success("🔓 **Akses terbuka!** Kamu bisa memproses dan mengunduh PDF lengkap ber-watermark.")
+
+            if st.button("🚀 Proses Seluruh PDF Ber-watermark", use_container_width=True, key="wm_full_btn", type="primary"):
+                with st.spinner(f"Sedang memproses {wm_count} halaman... Mohon tunggu sebentar."):
+                    try:
+                        prep_wm = prepare_watermark_image(
+                            wm_raw_bytes,
+                            opacity=st.session_state.get("wm_opacity", 15) / 100,
+                            remove_white_bg=st.session_state.get("wm_rmbg", False)
+                        )
+                        full_pdf, _ = apply_watermark_to_pdf(
+                            pdf_raw_bytes,
+                            prep_wm,
+                            selected_pages,
+                            scale=st.session_state.get("wm_scale", 45) / 100,
+                            sample_only=None
+                        )
+                        st.session_state["wm_full_pdf"] = full_pdf
+                    except Exception as e:
+                        st.error(f"❌ Gagal memproses PDF: {e}")
+
+            if "wm_full_pdf" in st.session_state:
+                full_data = st.session_state["wm_full_pdf"]
+                st.success(f"✅ PDF ber-watermark berhasil diproses! Ukuran: {len(full_data) / 1024 / 1024:.1f} MB")
+                btn_dl_full = st.download_button(
+                    label=f"📥 Unduh PDF Ber-watermark ({total_pages} halaman)",
+                    data=full_data,
+                    file_name="Skripsi_Watermarked.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="wm_dl_full"
+                )
+                if btn_dl_full:
+                    st.toast("🎉 PDF ber-watermark berhasil diunduh!")
+                    st.balloons()
+
+        else:
+            # BELUM UNLOCK — Tampilkan paywall
+            st.markdown(
+                """
+                <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); border: 2px solid #f59e0b; border-radius: 12px; padding: 20px; margin: 12px 0;">
+                    <h4 style="margin: 0 0 8px 0; color: #92400e;">🔒 Fitur Premium — Watermark PDF Lengkap</h4>
+                    <p style="margin: 0 0 12px 0; color: #78350f; font-size: 14px; line-height: 1.6;">
+                        Pratinjau 5 halaman pertama <b>gratis</b> untuk memastikan hasil watermark sesuai keinginanmu.<br>
+                        Untuk memproses dan mengunduh <b>seluruh halaman</b> PDF skripsi ber-watermark, silakan beli kode akses melalui <b>Lynk.id</b> (QRIS, GoPay, OVO, DANA, ShopeePay, VA Bank).<br><br>
+                        💰 <b>Harga: Rp5.000</b> (sekali bayar, bisa dipakai berkali-kali untuk NIM yang sama)
+                    </p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            st.link_button(
+                "💳 Beli Kode Akses via Lynk.id (Rp5.000)",
+                LYNK_PRODUCT_URL,
+                use_container_width=True
+            )
+
+            st.markdown("---")
+            st.markdown("##### Sudah punya kode akses? Masukkan di bawah:")
+
+            col_nim_wm, col_token = st.columns(2)
+            with col_nim_wm:
+                wm_nim = st.text_input(
+                    "NIM Kamu",
+                    placeholder="Contoh: 11200210000088",
+                    key="wm_nim",
+                    help="Masukkan NIM yang kamu gunakan saat membeli kode akses."
+                )
+            with col_token:
+                wm_token = st.text_input(
+                    "Kode Akses",
+                    placeholder="Contoh: SPI-A1B2C3D4",
+                    key="wm_token",
+                    help="Kode akses yang kamu terima setelah pembayaran berhasil di Lynk.id."
+                )
+
+            if st.button("🔓 Validasi & Buka Akses", use_container_width=True, key="wm_validate_btn"):
+                if not wm_nim.strip():
+                    st.error("⚠️ NIM wajib diisi!")
+                elif not wm_token.strip():
+                    st.error("⚠️ Kode Akses wajib diisi!")
+                elif validate_access_token(wm_nim, wm_token):
+                    st.session_state["wm_unlocked"] = True
+                    st.success("🎉 Kode akses valid! Akses watermark PDF lengkap telah dibuka.")
+                    st.rerun()
+                else:
+                    st.error("❌ Kode akses tidak valid untuk NIM tersebut. Pastikan NIM dan kode akses sudah benar.")
+
+    elif not wm_raw_bytes and not pdf_raw_bytes:
+        st.warning("⬆️ Silakan upload **gambar watermark** dan **file PDF skripsi** terlebih dahulu di atas.")
+    elif not wm_raw_bytes:
+        st.warning("⬆️ Silakan upload **gambar watermark** terlebih dahulu.")
+    elif total_pages == 0:
+        st.warning("⬆️ Silakan upload **file PDF skripsi** terlebih dahulu.")

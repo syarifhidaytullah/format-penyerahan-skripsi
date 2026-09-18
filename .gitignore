@@ -2,3 +2,5 @@
 __pycache__/
 *.pyc
 .DS_Store
+generate_token.py
+uin_logo_default.png
