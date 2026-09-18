@@ -4,3 +4,5 @@ __pycache__/
 .DS_Store
 generate_token.py
 uin_logo_default.png
+kode_akses_watermark.xlsx
+*.xlsx
