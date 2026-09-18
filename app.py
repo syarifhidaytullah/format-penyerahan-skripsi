@@ -1289,12 +1289,15 @@ Wassalamualaikum wr.wb."""
         render_saweria_box()
 
 # ==========================================
-# TAB 4: WATERMARK PDF SKRIPSI (BERBAYAR VIA LYNK.ID)
+# TAB 4: WATERMARK PDF SKRIPSI (BERBAYAR VIA WHATSAPP)
 # ==========================================
-# --- Konfigurasi Lynk.id ---
-# GANTI URL ini dengan URL produk Lynk.id kamu yang sesungguhnya
-LYNK_PRODUCT_URL = "https://lynk.id/syarifhidayatullah/s/watermark-skripsi"
-LYNK_ACCESS_SECRET = "SPI-LULUS-2026"  # Kode rahasia untuk validasi token algoritmik
+# --- Konfigurasi WhatsApp & Stok Kode ---
+WA_PHONE = "6285240118570"
+WA_MESSAGE = "Saya ingin membeli kode akses"
+WA_PURCHASE_URL = f"https://wa.me/{WA_PHONE}?text={urllib.parse.quote(WA_MESSAGE)}"
+LYNK_PRODUCT_URL = WA_PURCHASE_URL
+EXCEL_KODE_PATH = os.path.join(os.path.dirname(__file__), "kode_akses_watermark.xlsx")
+LYNK_ACCESS_SECRET = "SPI-LULUS-2026"  # Kode rahasia untuk validasi token algoritmik (legacy)
 
 def generate_access_token(nim: str) -> str:
     """Menghasilkan kode akses unik berdasarkan NIM + kunci rahasia."""
@@ -1302,10 +1305,42 @@ def generate_access_token(nim: str) -> str:
     h = hashlib.sha256(raw.encode()).hexdigest()[:8].upper()
     return f"SPI-{h}"
 
-def validate_access_token(nim: str, token: str) -> bool:
-    """Memvalidasi apakah kode akses cocok untuk NIM tertentu."""
-    expected = generate_access_token(nim)
-    return token.strip().upper() == expected
+def validate_access_token(nim: str, token: str) -> tuple[bool, str]:
+    """Memvalidasi apakah kode akses cocok (via Excel stok 5000 kode atau algoritma NIM)."""
+    token_clean = token.strip().upper()
+    nim_clean = nim.strip()
+
+    if not token_clean:
+        return False, "⚠️ Kode Akses wajib diisi!"
+
+    # 1. Cek stok 5000 kode unik di Excel
+    if os.path.exists(EXCEL_KODE_PATH):
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(EXCEL_KODE_PATH)
+            ws = wb.active
+            for row in ws.iter_rows(min_row=2, max_col=4):
+                code_val = str(row[1].value or "").strip().upper()
+                status_val = str(row[2].value or "").strip().upper()
+
+                if code_val == token_clean:
+                    if status_val == "BELUM_DIPAKAI":
+                        row[2].value = "SUDAH_DIPAKAI"
+                        row[3].value = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        wb.save(EXCEL_KODE_PATH)
+                        return True, "🎉 Kode akses valid! Akses watermark PDF lengkap telah dibuka."
+                    else:
+                        return False, "❌ Kode akses ini sudah pernah digunakan sebelumnya."
+        except Exception as e:
+            st.error(f"Error membaca stok kode Excel: {e}")
+
+    # 2. Cek Kompatibilitas Token Algoritmik (NIM + Secret)
+    if nim_clean:
+        expected = generate_access_token(nim_clean)
+        if token_clean == expected:
+            return True, "🎉 Kode akses valid (Algoritma NIM)! Akses watermark PDF lengkap telah dibuka."
+
+    return False, "❌ Kode akses tidak ditemukan atau tidak valid. Silakan periksa kembali."
 
 with tab4:
     st.markdown(
@@ -1567,8 +1602,8 @@ with tab4:
                     <h4 style="margin: 0 0 8px 0; color: #92400e;">🔒 Fitur Premium — Watermark PDF Lengkap</h4>
                     <p style="margin: 0 0 12px 0; color: #78350f; font-size: 14px; line-height: 1.6;">
                         Pratinjau 5 halaman pertama <b>gratis</b> untuk memastikan hasil watermark sesuai keinginanmu.<br>
-                        Untuk memproses dan mengunduh <b>seluruh halaman</b> PDF skripsi ber-watermark, silakan beli kode akses melalui <b>Lynk.id</b> (QRIS, GoPay, OVO, DANA, ShopeePay, VA Bank).<br><br>
-                        💰 <b>Harga: Rp5.000</b> (sekali bayar, bisa dipakai berkali-kali untuk NIM yang sama)
+                        Untuk memproses dan mengunduh <b>seluruh halaman</b> PDF skripsi ber-watermark, silakan beli kode akses melalui <b>WhatsApp Admin</b> (QRIS, GoPay, OVO, DANA, ShopeePay, Transfer Bank).<br><br>
+                        💰 <b>Harga: Rp5.000</b> (sekali bayar per kode akses)
                     </p>
                 </div>
                 """,
@@ -1576,8 +1611,8 @@ with tab4:
             )
 
             st.link_button(
-                "💳 Beli Kode Akses via Lynk.id (Rp5.000)",
-                LYNK_PRODUCT_URL,
+                "📲 Beli Kode Akses via WhatsApp (Rp5.000)",
+                WA_PURCHASE_URL,
                 use_container_width=True
             )
 
@@ -1587,30 +1622,27 @@ with tab4:
             col_nim_wm, col_token = st.columns(2)
             with col_nim_wm:
                 wm_nim = st.text_input(
-                    "NIM Kamu",
+                    "NIM Kamu (Opsional)",
                     placeholder="Contoh: 11200210000088",
                     key="wm_nim",
-                    help="Masukkan NIM yang kamu gunakan saat membeli kode akses."
+                    help="NIM kamu (opsional jika menggunakan kode unik WhatsApp)."
                 )
             with col_token:
                 wm_token = st.text_input(
                     "Kode Akses",
-                    placeholder="Contoh: SPI-A1B2C3D4",
+                    placeholder="Contoh: WM-ABCD-1234",
                     key="wm_token",
-                    help="Kode akses yang kamu terima setelah pembayaran berhasil di Lynk.id."
+                    help="Kode akses yang kamu terima dari Admin WhatsApp."
                 )
 
             if st.button("🔓 Validasi & Buka Akses", use_container_width=True, key="wm_validate_btn"):
-                if not wm_nim.strip():
-                    st.error("⚠️ NIM wajib diisi!")
-                elif not wm_token.strip():
-                    st.error("⚠️ Kode Akses wajib diisi!")
-                elif validate_access_token(wm_nim, wm_token):
+                is_valid, msg = validate_access_token(wm_nim, wm_token)
+                if is_valid:
                     st.session_state["wm_unlocked"] = True
-                    st.success("🎉 Kode akses valid! Akses watermark PDF lengkap telah dibuka.")
+                    st.success(msg)
                     st.rerun()
                 else:
-                    st.error("❌ Kode akses tidak valid untuk NIM tersebut. Pastikan NIM dan kode akses sudah benar.")
+                    st.error(msg)
 
     elif not wm_raw_bytes and not pdf_raw_bytes:
         st.warning("⬆️ Silakan upload **gambar watermark** dan **file PDF skripsi** terlebih dahulu di atas.")
