@@ -1,5 +1,6 @@
 import datetime
 import hashlib
+import hmac
 import io
 import os
 import re
@@ -1297,7 +1298,8 @@ WA_MESSAGE = "Saya ingin membeli kode akses"
 WA_PURCHASE_URL = f"https://wa.me/{WA_PHONE}?text={urllib.parse.quote(WA_MESSAGE)}"
 LYNK_PRODUCT_URL = WA_PURCHASE_URL
 EXCEL_KODE_PATH = os.path.join(os.path.dirname(__file__), "kode_akses_watermark.xlsx")
-LYNK_ACCESS_SECRET = "SPI-LULUS-2026"  # Kode rahasia untuk validasi token algoritmik (legacy)
+LYNK_ACCESS_SECRET = "SPI-LULUS-2026"  # Kunci rahasia untuk validasi token algoritmik NIM (legacy)
+HMAC_SECRET_KEY = b"SPI-WATERMARK-UIN-JKT-2026-KEY"  # Kunci HMAC untuk validasi voucher kriptografis tanpa database
 
 def generate_access_token(nim: str) -> str:
     """Menghasilkan kode akses unik berdasarkan NIM + kunci rahasia."""
@@ -1305,15 +1307,35 @@ def generate_access_token(nim: str) -> str:
     h = hashlib.sha256(raw.encode()).hexdigest()[:8].upper()
     return f"SPI-{h}"
 
+def verify_voucher_code(token: str) -> bool:
+    """Memverifikasi kode voucher format WM-XXXX-YYYY secara kriptografis tanpa database."""
+    token_clean = token.strip().upper()
+    parts = token_clean.split("-")
+    if len(parts) != 3 or parts[0] != "WM":
+        return False
+    payload, sig = parts[1], parts[2]
+    expected_sig = hmac.new(HMAC_SECRET_KEY, payload.encode("utf-8"), hashlib.sha256).hexdigest()[:4].upper()
+    return hmac.compare_digest(sig, expected_sig)
+
 def validate_access_token(nim: str, token: str) -> tuple[bool, str]:
-    """Memvalidasi apakah kode akses cocok (via Excel stok 5000 kode atau algoritma NIM)."""
+    """Memvalidasi apakah kode akses cocok (via Voucher Kriptografis, Token NIM, atau Excel)."""
     token_clean = token.strip().upper()
     nim_clean = nim.strip()
 
     if not token_clean:
         return False, "⚠️ Kode Akses wajib diisi!"
 
-    # 1. Cek stok 5000 kode unik di Excel
+    # 1. Verifikasi Kode Voucher Kriptografis (Format WM-XXXX-YYYY) - Bekerja tanpa database/server
+    if verify_voucher_code(token_clean):
+        return True, "🎉 Kode akses valid! Akses watermark PDF lengkap telah dibuka."
+
+    # 2. Cek Kompatibilitas Token Algoritmik (NIM + Secret: SPI-XXXX)
+    if nim_clean:
+        expected = generate_access_token(nim_clean)
+        if token_clean == expected:
+            return True, "🎉 Kode akses valid (Algoritma NIM)! Akses watermark PDF lengkap telah dibuka."
+
+    # 3. Cek stok kode di Excel lokal jika file tersedia
     if os.path.exists(EXCEL_KODE_PATH):
         try:
             import openpyxl
@@ -1332,13 +1354,7 @@ def validate_access_token(nim: str, token: str) -> tuple[bool, str]:
                     else:
                         return False, "❌ Kode akses ini sudah pernah digunakan sebelumnya."
         except Exception as e:
-            st.error(f"Error membaca stok kode Excel: {e}")
-
-    # 2. Cek Kompatibilitas Token Algoritmik (NIM + Secret)
-    if nim_clean:
-        expected = generate_access_token(nim_clean)
-        if token_clean == expected:
-            return True, "🎉 Kode akses valid (Algoritma NIM)! Akses watermark PDF lengkap telah dibuka."
+            pass
 
     return False, "❌ Kode akses tidak ditemukan atau tidak valid. Silakan periksa kembali."
 

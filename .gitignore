@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .DS_Store
 generate_token.py
+generate_voucher_codes.py
 uin_logo_default.png
 kode_akses_watermark.xlsx
 *.xlsx
